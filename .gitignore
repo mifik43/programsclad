@@ -1,1 +1,71 @@
+# Python virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Flask instance folder and local config
+instance/
+*.sqlite3
+service.db
+*.db
+*.db-journal
+
+# Logs, temp files, caches
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.swo
+*.swn
+
+# IDE/editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build and backup artifacts
 backups/
+*.bak
+*.tmp
+*.temp
+
+# Python packaging
+pip-wheel-metadata/
+*.egg-info/
+/dist/
+/build/
+.eggs/
+
+# Jupyter Notebook checkpoint files
+.ipynb_checkpoints/
+
+# Generated assets
+*.pdf
+*.xlsx
+*.xls
+*.csv
+
+# Environment variables
+.env
+.env.*
+
+# Plotly static export
+*.html
+
+# Misc
+coverage.xml
+htmlcov/
+.pytest_cache/
