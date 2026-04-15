@@ -12,6 +12,23 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import mm
+import os
+import json
+
+
+
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY')
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY')
+VAPID_CLAIMS = {"sub": "mailto:admin@service-center.ru"}
+
+def send_push_notification(subscription_info, title, body, url='/'):
+    try:
+        pusher = WebPusher(VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_CLAIMS)
+        payload = json.dumps({'title': title, 'body': body, 'url': url})
+        pusher.send(subscription_info, payload)
+    except Exception as e:
+        print(f"Push error: {e}")
+
 
 def send_email_with_attachment_async(subject, recipient, html_body, pdf_buffer=None, filename="act.pdf"):
     def send():

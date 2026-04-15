@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card text-center mt-5">
+    <div class="card-body">
+        <i class="fas fa-wifi-slash fa-4x text-muted mb-3"></i>
+        <h3>Нет подключения к интернету</h3>
+        <p>Проверьте соединение и попробуйте снова.</p>
+        <button class="btn btn-primary" onclick="location.reload()">Обновить</button>
+    </div>
+</div>
+{% endblock %}

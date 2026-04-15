@@ -884,3 +884,7 @@ def export_selected_orders_excel():
     wb.save(output)
     output.seek(0)
     return send_file(output, as_attachment=True, download_name=f'selected_orders_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@main_bp.route('/offline')
+def offline():
+    return render_template('offline.html'), 503
