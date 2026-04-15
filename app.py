@@ -3,11 +3,14 @@ from flask_login import LoginManager
 from models import db, User
 from auth import auth_bp
 from routes import main_bp
+from apscheduler.schedulers.background import BackgroundScheduler
+from utils import create_backup
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///service.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 
 db.init_app(app)
 login_manager = LoginManager()
@@ -28,6 +31,16 @@ with app.app_context():
         admin.set_password('admin123')
         db.session.add(admin)
         db.session.commit()
+
+
+scheduler = BackgroundScheduler()
+# Еженедельный бэкап каждое воскресенье в 3:00
+scheduler.add_job(func=create_backup, trigger='cron', day_of_week='sun', hour=3, minute=0, args=[app])
+scheduler.start()
+
+# При выключении приложения останавливаем планировщик
+import atexit
+atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
     app.run(debug=True)

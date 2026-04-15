@@ -60,7 +60,7 @@
     </div>
 </div>
 
-<!-- Быстрые действия (как были) -->
+<!-- Быстрые действия -->
 <div class="row">
     <div class="col-md-12">
         <div class="card">
@@ -90,13 +90,15 @@
                     <div class="col-md-3"><a href="{{ url_for('main.users_list') }}" class="btn btn-danger w-100 mb-2">👤 Пользователи</a></div>
                     {% endif %}
                     <div class="col-md-3"><a href="{{ url_for('main.warranty_page') }}" class="btn btn-secondary w-100 mb-2">📜 Гарантии</a></div>
+                    <div class="col-md-3"><a href="{{ url_for('main.backups_page') }}" class="btn btn-secondary w-100 mb-2">💾 Бэкапы</a></div>
+                    <div class="col-md-3"><a href="{{ url_for('main.analytics_page') }}" class="btn btn-info w-100 mb-2">📊 Аналитика</a></div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Уведомления (как были) -->
+<!-- Уведомления-->
 <div class="row mt-4">
     <div class="col-md-12">
         <div class="card">
@@ -193,7 +195,7 @@
         });
     }
 
-    // Уведомления (как ранее)
+    // Уведомления 
     async function loadNotifications() {
         const res = await fetch('/api/notifications');
         const notifs = await res.json();

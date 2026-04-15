@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">📊 Умная аналитика сервис-центра</div>
+    <div class="card-body">
+        <!-- KPI виджеты -->
+        <div class="row mb-4" id="kpiWidgets">
+            <div class="col-md-3 mb-2">
+                <div class="card text-center bg-primary text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Выручка за 30 дней</h5>
+                        <p class="card-text display-6" id="kpiRevenue">0 ₽</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-2">
+                <div class="card text-center bg-success text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Средний чек</h5>
+                        <p class="card-text display-6" id="kpiAvgCheck">0 ₽</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-2">
+                <div class="card text-center bg-info text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Выполнено заказов</h5>
+                        <p class="card-text display-6" id="kpiCompleted">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-2">
+                <div class="card text-center bg-warning text-dark">
+                    <div class="card-body">
+                        <h5 class="card-title">Ср. время ремонта</h5>
+                        <p class="card-text display-6" id="kpiAvgDays">0 дн.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Интерактивные графики -->
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-header">📈 Динамика выручки</div>
+                    <div class="card-body">
+                        <div id="revenueChart"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-header">📱 Популярные модели</div>
+                    <div class="card-body">
+                        <div id="popularChart"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12 mb-3">
+                <div class="card">
+                    <div class="card-header">👨‍🔧 Производительность мастеров</div>
+                    <div class="card-body">
+                        <div id="masterChart"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-3.1.0.min.js" charset="utf-8"></script>
+<script>
+    async function loadKPI() {
+        const res = await fetch('/api/analytics/kpi');
+        const data = await res.json();
+        document.getElementById('kpiRevenue').innerText = data.total_revenue.toLocaleString() + ' ₽';
+        document.getElementById('kpiAvgCheck').innerText = data.avg_check.toLocaleString() + ' ₽';
+        document.getElementById('kpiCompleted').innerText = data.completed_orders;
+        document.getElementById('kpiAvgDays').innerText = data.avg_completion_days + ' дн.';
+    }
+
+    async function loadRevenueChart() {
+        const res = await fetch('/api/analytics/revenue-daily');
+        const data = await res.json();
+        if (data.graph_json) {
+            const figure = JSON.parse(data.graph_json);
+            Plotly.newPlot('revenueChart', figure.data, figure.layout);
+        }
+    }
+
+    async function loadPopularChart() {
+        const res = await fetch('/api/analytics/popular-services');
+        const data = await res.json();
+        if (data.graph_json) {
+            const figure = JSON.parse(data.graph_json);
+            Plotly.newPlot('popularChart', figure.data, figure.layout);
+        }
+    }
+
+    async function loadMasterChart() {
+        const res = await fetch('/api/analytics/master-performance');
+        const data = await res.json();
+        if (data.graph_json) {
+            const figure = JSON.parse(data.graph_json);
+            Plotly.newPlot('masterChart', figure.data, figure.layout);
+        }
+    }
+
+    loadKPI();
+    loadRevenueChart();
+    loadPopularChart();
+    loadMasterChart();
+    setInterval(() => {
+        loadKPI();
+        loadRevenueChart();
+        loadPopularChart();
+        loadMasterChart();
+    }, 60000); // Обновление каждую минуту
+</script>
+{% endblock %}

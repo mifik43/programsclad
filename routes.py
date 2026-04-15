@@ -888,3 +888,77 @@ def export_selected_orders_excel():
 @main_bp.route('/offline')
 def offline():
     return render_template('offline.html'), 503
+
+@main_bp.route('/api/backups', methods=['GET'])
+@role_required('admin')
+def get_backups():
+    backups = list_backups()
+    return jsonify([{
+        'id': b.id,
+        'filename': b.filename,
+        'created_at': b.created_at.isoformat(),
+        'size': b.size,
+        'description': b.description
+    } for b in backups])
+
+@main_bp.route('/api/backups/create', methods=['POST'])
+@role_required('admin')
+def create_backup_manual():
+    try:
+        name = create_backup(current_app)
+        return jsonify({'status': 'ok', 'filename': name})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/api/backups/<int:id>/download', methods=['GET'])
+@role_required('admin')
+def download_backup(id):
+    backup = Backup.query.get_or_404(id)
+    backup_dir = os.path.join(os.path.dirname(__file__), 'backups')
+    backup_path = os.path.join(backup_dir, backup.filename)
+    if not os.path.exists(backup_path):
+        return jsonify({'error': 'File not found'}), 404
+    return send_file(backup_path, as_attachment=True, download_name=backup.filename)
+
+@main_bp.route('/api/backups/<int:id>/restore', methods=['POST'])
+@role_required('admin')
+def restore_backup_route(id):
+    try:
+        restore_backup(id, current_app)
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@main_bp.route('/backups')
+@role_required('admin')
+def backups_page():
+    return render_template('backups.html')
+
+@main_bp.route('/api/analytics/kpi')
+@login_required
+def get_kpi():
+    kpis = get_daily_kpis()
+    return jsonify(kpis)
+
+@main_bp.route('/api/analytics/revenue-daily')
+@login_required
+def get_revenue_daily():
+    data = get_revenue_by_day()
+    return jsonify(data)
+
+@main_bp.route('/api/analytics/popular-services')
+@login_required
+def get_popular():
+    data = get_popular_services()
+    return jsonify(data)
+
+@main_bp.route('/api/analytics/master-performance')
+@login_required
+def get_master_perf():
+    data = get_master_performance()
+    return jsonify(data)
+
+@main_bp.route('/analytics')
+@login_required
+def analytics_page():
+    return render_template('analytics.html')

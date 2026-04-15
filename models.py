@@ -138,3 +138,18 @@ class WarrantyCard(db.Model):
         )
         db.session.add(card)
         return card
+    
+class Backup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    size = db.Column(db.Integer)  # размер в байтах
+    description = db.Column(db.String(200))
+
+class AnalyticReport(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    report_date = db.Column(db.Date, default=datetime.utcnow().date)
+    report_type = db.Column(db.String(50))  # 'daily', 'monthly'
+    data_json = db.Column(db.Text)  # JSON с метриками
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+

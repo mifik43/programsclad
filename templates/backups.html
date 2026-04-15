@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">💾 Резервное копирование базы данных</div>
+    <div class="card-body">
+        <button class="btn btn-primary mb-3" id="createBackupBtn"><i class="fas fa-plus"></i> Создать резервную копию</button>
+        <div class="table-responsive-stack">
+            <table class="table table-bordered">
+                <thead class="table-dark">
+                    <tr><th>ID</th><th>Файл</th><th>Дата создания</th><th>Размер</th><th>Описание</th><th>Действия</th></tr>
+                </thead>
+                <tbody id="backupTable"><tr><td colspan="6" class="text-center">Загрузка...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function loadBackups() {
+        const res = await fetch('/api/backups');
+        const backups = await res.json();
+        const tbody = document.getElementById('backupTable');
+        tbody.innerHTML = '';
+        backups.forEach(b => {
+            const size = (b.size / 1024).toFixed(2) + ' KB';
+            const date = new Date(b.created_at).toLocaleString();
+            const row = `<tr>
+                <td>${b.id}</td><td>${b.filename}</td><td>${date}</td>
+                <td>${size}</td><td>${b.description || ''}</td>
+                <td>
+                    <a href="/api/backups/${b.id}/download" class="btn btn-sm btn-success"><i class="fas fa-download"></i> Скачать</a>
+                    <button class="btn btn-sm btn-warning restore-backup" data-id="${b.id}"><i class="fas fa-undo"></i> Восстановить</button>
+                </td>
+            </tr>`;
+            tbody.insertAdjacentHTML('beforeend', row);
+        });
+        document.querySelectorAll('.restore-backup').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if(confirm('Восстановление заменит текущую базу данных. Продолжить?')) {
+                    const res = await fetch(`/api/backups/${btn.dataset.id}/restore`, {method: 'POST'});
+                    const data = await res.json();
+                    if(data.status === 'ok') alert('База данных восстановлена. Перезагрузите страницу.');
+                    else alert('Ошибка: ' + data.error);
+                }
+            });
+        });
+    }
+    document.getElementById('createBackupBtn')?.addEventListener('click', async () => {
+        const res = await fetch('/api/backups/create', {method: 'POST'});
+        const data = await res.json();
+        if(data.status === 'ok') {
+            alert('Бэкап создан: ' + data.filename);
+            loadBackups();
+        } else alert('Ошибка: ' + data.error);
+    });
+    loadBackups();
+</script>
+{% endblock %}
