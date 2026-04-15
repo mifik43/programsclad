@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">Финансы / Ежемесячные платежи</div>
+    <div class="card-body">
+        <h4>Баланс: <span id="balanceSpan" class="text-success">0</span> руб.</h4>
+        <div class="mb-3">
+            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#transModal">💰 Операция</button>
+            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#recurringModal">📅 Добавить платёж</button>
+            <button class="btn btn-sm btn-success" id="applyRecurringBtn">💸 Начислить ежемесячные</button>
+            <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#reportModal">📊 Отчёты</button>
+        </div>
+        <h6>Регулярные платежи</h6>
+        <table class="table table-sm"><thead><tr><th>Категория</th><th>Сумма</th><th>Описание</th><th>Последнее начисление</th><th></th></tr></thead><tbody id="recurringTable"></tbody></table>
+        <hr>
+        <h6>История операций</h6>
+        <table class="table table-sm"><thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Описание</th></tr></thead><tbody id="transTable"></tbody></table>
+    </div>
+</div>
+<div class="modal fade" id="transModal"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5>Операция</h5></div>
+    <div class="modal-body">
+        <select id="transType" class="form-select mb-2"><option value="income">Доход</option><option value="expense">Расход</option></select>
+        <input type="text" id="transCat" class="form-control mb-2" placeholder="Категория">
+        <input type="number" id="transAmount" class="form-control mb-2" placeholder="Сумма">
+        <input type="text" id="transDesc" class="form-control mb-2" placeholder="Описание">
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" id="addTransBtn">Добавить</button></div>
+</div></div></div>
+<div class="modal fade" id="recurringModal"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5>Ежемесячный платёж</h5></div>
+    <div class="modal-body">
+        <input type="text" id="recCat" class="form-control mb-2" placeholder="Категория (аренда, свет, вода...)">
+        <input type="number" id="recAmount" class="form-control mb-2" placeholder="Сумма">
+        <input type="text" id="recDesc" class="form-control mb-2" placeholder="Описание">
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" id="saveRecBtn">Сохранить</button></div>
+</div></div></div>
+<!-- Модальное окно отчётов -->
+<div class="modal fade" id="reportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Генерация отчётов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6>Финансовый отчёт</h6>
+                <div class="row mb-3">
+                    <div class="col">
+                        <input type="date" id="reportStartDate" class="form-control" placeholder="Начало">
+                    </div>
+                    <div class="col">
+                        <input type="date" id="reportEndDate" class="form-control" placeholder="Конец">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <button class="btn btn-primary" id="genFinancePDF">PDF</button>
+                    <button class="btn btn-success" id="genFinanceExcel">Excel</button>
+                </div>
+                <hr>
+                <h6>Зарплатная ведомость</h6>
+                <div class="mb-3">
+                    <input type="month" id="salaryMonth" class="form-control mb-2">
+                    <button class="btn btn-warning" id="genSalaryPDF">PDF</button>
+                </div>
+                <hr>
+                <h6>Отчёт по заказам (Excel)</h6>
+                <div class="row mb-3">
+                    <div class="col">
+                        <input type="date" id="ordersStartDate" class="form-control" placeholder="Начало">
+                    </div>
+                    <div class="col">
+                        <input type="date" id="ordersEndDate" class="form-control" placeholder="Конец">
+                    </div>
+                </div>
+                <button class="btn btn-secondary" id="genOrdersExcel">Excel</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    async function loadBalance() {
+        const res = await fetch('/api/finance/balance');
+        const data = await res.json();
+        document.getElementById('balanceSpan').innerText = data.balance;
+    }
+    async function loadTransactions() {
+        const res = await fetch('/api/finance/transactions');
+        const trans = await res.json();
+        const tbody = document.getElementById('transTable');
+        tbody.innerHTML = '';
+        trans.forEach(t => {
+            const row = `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${t.type==='income'?'Доход':'Расход'}</td><td>${t.category}</td><td>${t.amount}₽</td><td>${t.description||''}</td></tr>`;
+            tbody.insertAdjacentHTML('beforeend', row);
+        });
+    }
+    async function loadRecurring() {
+        const res = await fetch('/api/recurring');
+        const recs = await res.json();
+        const tbody = document.getElementById('recurringTable');
+        tbody.innerHTML = '';
+        recs.forEach(r => {
+            const row = `<tr><td>${r.category}</td><td>${r.amount}₽</td><td>${r.description||''}</td><td>${r.last_applied_month||'никогда'}</td><td><button class="btn btn-sm btn-danger del-rec" data-id="${r.id}">Удалить</button></td></tr>`;
+            tbody.insertAdjacentHTML('beforeend', row);
+        });
+        document.querySelectorAll('.del-rec').forEach(btn => btn.addEventListener('click', async () => {
+            await fetch(`/api/recurring/${btn.dataset.id}`, {method: 'DELETE'});
+            loadRecurring();
+        }));
+    }
+    document.getElementById('addTransBtn')?.addEventListener('click', async () => {
+        const type = document.getElementById('transType').value;
+        const category = document.getElementById('transCat').value;
+        const amount = parseFloat(document.getElementById('transAmount').value);
+        const description = document.getElementById('transDesc').value;
+        if(category && amount) {
+            await fetch('/api/finance/transaction', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({type, category, amount, description})});
+            bootstrap.Modal.getInstance(document.getElementById('transModal')).hide();
+            loadTransactions(); loadBalance();
+        } else alert('Заполните поля');
+    });
+    document.getElementById('saveRecBtn')?.addEventListener('click', async () => {
+        const category = document.getElementById('recCat').value;
+        const amount = parseFloat(document.getElementById('recAmount').value);
+        const description = document.getElementById('recDesc').value;
+        if(category && amount) {
+            await fetch('/api/recurring', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({category, amount, description})});
+            bootstrap.Modal.getInstance(document.getElementById('recurringModal')).hide();
+            loadRecurring();
+        } else alert('Введите категорию и сумму');
+    });
+    document.getElementById('applyRecurringBtn')?.addEventListener('click', async () => {
+        const res = await fetch('/api/recurring/apply', {method: 'POST'});
+        const data = await res.json();
+        alert(`Начислено ${data.applied} платежей`);
+        loadTransactions(); loadBalance();
+    });
+    loadBalance(); loadTransactions(); loadRecurring();
+    // Отчёты
+document.getElementById('genFinancePDF')?.addEventListener('click', () => {
+    const start = document.getElementById('reportStartDate').value;
+    const end = document.getElementById('reportEndDate').value;
+    if(start && end) {
+        window.open(`/api/reports/finance/pdf?start_date=${start}&end_date=${end}`, '_blank');
+    } else alert('Выберите период');
+});
+document.getElementById('genFinanceExcel')?.addEventListener('click', () => {
+    const start = document.getElementById('reportStartDate').value;
+    const end = document.getElementById('reportEndDate').value;
+    if(start && end) {
+        window.open(`/api/reports/finance/excel?start_date=${start}&end_date=${end}`, '_blank');
+    } else alert('Выберите период');
+});
+document.getElementById('genSalaryPDF')?.addEventListener('click', () => {
+    const month = document.getElementById('salaryMonth').value;
+    if(month) {
+        window.open(`/api/reports/salary/pdf?month=${month}`, '_blank');
+    } else alert('Выберите месяц');
+});
+document.getElementById('genOrdersExcel')?.addEventListener('click', () => {
+    const start = document.getElementById('ordersStartDate').value;
+    const end = document.getElementById('ordersEndDate').value;
+    if(start && end) {
+        window.open(`/api/reports/orders/excel?start_date=${start}&end_date=${end}`, '_blank');
+    } else alert('Выберите период');
+});
+</script>
+{% endblock %}

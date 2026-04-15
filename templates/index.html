@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-3">
+            <div class="card-header">Панель управления</div>
+            <div class="card-body">
+                <div class="row" id="dashboardWidgets">
+                    <div class="col-md-2 mb-2"><div class="card text-center"><div class="card-body"><h5 class="card-title">Активных заказов</h5><p class="card-text display-6" id="statActive">0</p></div></div></div>
+                    <div class="col-md-2 mb-2"><div class="card text-center"><div class="card-body"><h5 class="card-title">Просрочено</h5><p class="card-text display-6" id="statOverdue">0</p></div></div></div>
+                    <div class="col-md-2 mb-2"><div class="card text-center"><div class="card-body"><h5 class="card-title">Заказов сегодня</h5><p class="card-text display-6" id="statToday">0</p></div></div></div>
+                    <div class="col-md-2 mb-2"><div class="card text-center"><div class="card-body"><h5 class="card-title">Баланс, ₽</h5><p class="card-text display-6" id="statBalance">0</p></div></div></div>
+                    <div class="col-md-2 mb-2"><div class="card text-center"><div class="card-body"><h5 class="card-title">Товаров < 3 шт</h5><p class="card-text display-6" id="statLowStock">0</p></div></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">Быстрые действия</div>
+            <div class="card-body">
+                <div class="row">
+                    {% if current_user.has_role('admin', 'manager', 'receiver') %}
+                    <div class="col-md-3"><a href="{{ url_for('main.orders_page') }}" class="btn btn-primary w-100 mb-2">📋 Заказы</a></div>
+                    {% endif %}
+                    {% if current_user.has_role('admin', 'manager') %}
+                    <div class="col-md-3"><a href="{{ url_for('main.employees_page') }}" class="btn btn-success w-100 mb-2">👥 Сотрудники</a></div>
+                    {% endif %}
+                    {% if current_user.has_role('admin', 'accountant', 'manager') %}
+                    <div class="col-md-3"><a href="{{ url_for('main.finance_page') }}" class="btn btn-info w-100 mb-2">💰 Финансы</a></div>
+                    {% endif %}
+                    {% if current_user.has_role('admin', 'manager') %}
+                    <div class="col-md-3"><a href="{{ url_for('main.blacklist_page') }}" class="btn btn-dark w-100 mb-2">⛔ ЧС</a></div>
+                    {% endif %}
+                    {% if current_user.has_role('admin', 'accountant', 'manager') %}
+                    <div class="col-md-3"><a href="{{ url_for('main.pricelist_page') }}" class="btn btn-warning w-100 mb-2">💲 Прайс</a></div>
+                    {% endif %}
+                    {% if current_user.has_role('admin', 'manager', 'receiver', 'master') %}
+                    <div class="col-md-3"><a href="{{ url_for('main.calendar_page') }}" class="btn btn-secondary w-100 mb-2">📅 Календарь</a></div>
+                    {% endif %}
+                    {% if current_user.has_role('admin') %}
+                    <div class="col-md-3"><a href="{{ url_for('main.warehouse_page') }}" class="btn btn-primary w-100 mb-2">📦 Склад</a></div>
+                    <div class="col-md-3"><a href="{{ url_for('main.users_list') }}" class="btn btn-danger w-100 mb-2">👤 Пользователи</a></div>
+                    <div class="col-md-3"><a href="{{ url_for('main.settings_page') }}" class="btn btn-warning w-100 mb-2">⚙️ Настройки</a></div>
+                    <div class="col-md-3"><a href="{{ url_for('main.warranty_page') }}" class="btn btn-secondary w-100 mb-2">📜 Гарантии</a></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Уведомления <span id="notifBadge" class="badge bg-danger rounded-pill" style="display:none">0</span></div>
+            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                <div id="notificationsList">Загрузка...</div>
+                <button id="markAllReadBtn" class="btn btn-sm btn-outline-secondary mt-2 w-100">Отметить все прочитанными</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function loadDashboardStats() {
+        const res = await fetch('/api/dashboard-stats');
+        const data = await res.json();
+        document.getElementById('statActive').innerText = data.active_orders;
+        document.getElementById('statOverdue').innerText = data.overdue_orders;
+        document.getElementById('statToday').innerText = data.today_orders;
+        document.getElementById('statBalance').innerText = data.balance;
+        document.getElementById('statLowStock').innerText = data.low_stock;
+    }
+
+    async function loadNotifications() {
+        const res = await fetch('/api/notifications');
+        const notifs = await res.json();
+        const container = document.getElementById('notificationsList');
+        const badge = document.getElementById('notifBadge');
+        if(notifs.length === 0) {
+            container.innerHTML = '<p class="text-muted">Нет новых уведомлений</p>';
+            badge.style.display = 'none';
+        } else {
+            badge.style.display = 'inline-block';
+            badge.innerText = notifs.length;
+            let html = '';
+            notifs.forEach(n => {
+                const date = new Date(n.created_at).toLocaleString();
+                html += `<div class="alert alert-info alert-dismissible fade show p-2 mb-2" data-id="${n.id}">
+                            <strong>${n.title}</strong><br>
+                            <small>${n.message}</small><br>
+                            <small class="text-muted">${date}</small>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" onclick="markRead(${n.id})"></button>
+                         </div>`;
+            });
+            container.innerHTML = html;
+        }
+    }
+
+    async function markRead(id) {
+        await fetch(`/api/notifications/${id}/read`, {method: 'POST'});
+        loadNotifications();
+    }
+
+    document.getElementById('markAllReadBtn')?.addEventListener('click', async () => {
+        await fetch('/api/notifications/mark-all-read', {method: 'POST'});
+        loadNotifications();
+    });
+
+    // Загружаем данные каждые 30 секунд
+    loadDashboardStats();
+    loadNotifications();
+    setInterval(() => {
+        loadDashboardStats();
+        loadNotifications();
+    }, 30000);
+</script>
+{% endblock %}

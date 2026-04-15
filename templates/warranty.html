@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">📜 Гарантийные талоны</div>
+    <div class="card-body">
+        <input type="text" id="searchWarranty" class="form-control mb-3" placeholder="Поиск по номеру заказа, описанию...">
+        <table class="table table-bordered">
+            <thead class="table-dark">
+                <tr><th>ID</th><th>Заказ #</th><th>Тип</th><th>Описание</th><th>Действителен до</th><th>Статус</th><th></th></tr>
+            </thead>
+            <tbody id="warrantyTable"></tbody>
+        </table>
+    </div>
+</div>
+<script>
+    async function loadWarranty() {
+        const res = await fetch('/api/warranty-cards');
+        const cards = await res.json();
+        const search = document.getElementById('searchWarranty').value.toLowerCase();
+        const filtered = cards.filter(c => c.order_id.toString().includes(search) || c.description.toLowerCase().includes(search));
+        const tbody = document.getElementById('warrantyTable');
+        tbody.innerHTML = '';
+        filtered.forEach(c => {
+            const validUntil = new Date(c.valid_until);
+            const now = new Date();
+            const isExpired = validUntil < now;
+            const statusBadge = !c.is_active ? '<span class="badge bg-secondary">Аннулирован</span>' : 
+                                (isExpired ? '<span class="badge bg-danger">Истёк</span>' : '<span class="badge bg-success">Активен</span>');
+            const row = `<tr>
+                <td>${c.id}</td><td>${c.order_id}</td><td>${c.warranty_type === 'work' ? '🔧 Работы' : '🔩 Запчасти'}</td>
+                <td>${c.description}</td><td>${validUntil.toLocaleDateString()}</td><td>${statusBadge}</td>
+                <td>${c.is_active && !isExpired ? `<button class="btn btn-sm btn-danger deactivate-warranty" data-id="${c.id}">Аннулировать</button>` : ''}</td>
+            </tr>`;
+            tbody.insertAdjacentHTML('beforeend', row);
+        });
+        document.querySelectorAll('.deactivate-warranty').forEach(btn => btn.addEventListener('click', async () => {
+            if(confirm('Аннулировать гарантию?')) await fetch(`/api/warranty-cards/${btn.dataset.id}/deactivate`, {method: 'POST'});
+            loadWarranty();
+        }));
+    }
+    document.getElementById('searchWarranty')?.addEventListener('input', loadWarranty);
+    loadWarranty();
+</script>
+{% endblock %}

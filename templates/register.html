@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header">Создание пользователя</div>
+            <div class="card-body">
+                <form method="post">
+                    <input type="text" name="username" class="form-control mb-2" placeholder="Логин" required>
+                    <input type="password" name="password" class="form-control mb-2" placeholder="Пароль" required>
+                    <input type="text" name="full_name" class="form-control mb-2" placeholder="ФИО (необязательно)">
+                    <select name="role" class="form-select mb-2" required>
+                        <option value="receiver">Приёмщик</option>
+                        <option value="manager">Менеджер</option>
+                        <option value="master">Мастер</option>
+                        <option value="accountant">Бухгалтер</option>
+                        <option value="admin">Администратор</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary w-100">Создать</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

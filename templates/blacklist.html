@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">Чёрный список клиентов</div>
+    <div class="card-body">
+        <button class="btn btn-dark mb-2" data-bs-toggle="modal" data-bs-target="#addBlackModal">➕ Добавить в ЧС</button>
+        <table class="table table-sm">
+            <thead><tr><th>ФИО</th><th>Телефон</th><th>Причина</th><th></th></tr></thead>
+            <tbody id="blacklistTable"></tbody>
+        </table>
+    </div>
+</div>
+<div class="modal fade" id="addBlackModal"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5>Добавить в чёрный список</h5></div>
+    <div class="modal-body">
+        <input type="text" id="blName" class="form-control mb-2" placeholder="ФИО">
+        <input type="text" id="blPhone" class="form-control mb-2" placeholder="Телефон">
+        <input type="text" id="blReason" class="form-control mb-2" placeholder="Причина">
+    </div>
+    <div class="modal-footer"><button class="btn btn-dark" id="saveBlackBtn">Добавить</button></div>
+</div></div></div>
+<script>
+    async function loadBlacklist() {
+        const res = await fetch('/api/blacklist');
+        const items = await res.json();
+        const tbody = document.getElementById('blacklistTable');
+        tbody.innerHTML = '';
+        items.forEach(i => {
+            const row = `<tr>
+                <td>${i.full_name}</td><td>${i.phone}</td><td>${i.reason}</td>
+                <td><button class="btn btn-sm btn-danger del-black" data-id="${i.id}">Удалить</button></td>
+            </table>`;
+            tbody.insertAdjacentHTML('beforeend', row);
+        });
+        document.querySelectorAll('.del-black').forEach(btn => btn.addEventListener('click', async () => {
+            if(confirm('Удалить?')) await fetch(`/api/blacklist/${btn.dataset.id}`, {method: 'DELETE'});
+            loadBlacklist();
+        }));
+    }
+    document.getElementById('saveBlackBtn')?.addEventListener('click', async () => {
+        const full_name = document.getElementById('blName').value;
+        const phone = document.getElementById('blPhone').value;
+        const reason = document.getElementById('blReason').value;
+        if(full_name && phone) {
+            await fetch('/api/blacklist', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({full_name, phone, reason})});
+            bootstrap.Modal.getInstance(document.getElementById('addBlackModal')).hide();
+            loadBlacklist();
+        } else alert('Заполните ФИО и телефон');
+    });
+    loadBlacklist();
+</script>
+{% endblock %}

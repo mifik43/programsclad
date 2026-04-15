@@ -1,0 +1,3 @@
+body { background: #f4f7fc; }
+.card-header { background: #0d6efd; color: white; }
+.timer { font-family: monospace; font-weight: bold; background: #212529; color: #0ff; padding: 2px 8px; border-radius: 20px; }

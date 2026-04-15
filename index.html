@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Сервисный центр - Управление</title>
+    <!-- Bootstrap 5 + Icons + Datepicker -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { background: #f4f7fc; font-family: 'Segoe UI', Roboto; }
+        .card-header { background: #0d6efd; color: white; font-weight: bold; }
+        .nav-tabs .nav-link { font-weight: 500; }
+        .table-sm td, .table-sm th { vertical-align: middle; }
+        .timer { font-family: monospace; font-weight: bold; background: #212529; color: #0ff; padding: 2px 8px; border-radius: 20px; display: inline-block; }
+        .badge-deadline { font-size: 0.8rem; }
+        .row-section { margin-top: 20px; }
+        .clickable-row { cursor: pointer; }
+        .footer { margin-top: 30px; text-align: center; font-size: 12px; color: gray; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid px-3 py-3">
+    <h2 class="mb-3"><i class="fas fa-tools"></i> Сервисный центр «Мастер»</h2>
+    
+    <!-- Вкладки -->
+    <ul class="nav nav-tabs" id="mainTab" role="tablist">
+        <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#warehouse" type="button">📦 Склад</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#employees" type="button">👥 Сотрудники</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#orders" type="button">🔧 Заказы / Ремонт</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#finance" type="button">💰 Финансы</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#blacklist" type="button">⛔ Чёрный список</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target=".price-tab" type="button" id="priceTabBtn">💲 Прайс</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#calendar" type="button">📅 Календарь</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#settings" type="button">⚙️ Настройки</button></li>
+    </ul>
+    
+    <div class="tab-content mt-3">
+        <!-- СКЛАД -->
+        <div class="tab-pane fade show active" id="warehouse">
+            <div class="card">
+                <div class="card-header">Товары на складе (добавление = минус из кассы)</div>
+                <div class="card-body">
+                    <button class="btn btn-sm btn-primary mb-2" data-bs-toggle="modal" data-bs-target="#addStockModal"><i class="fas fa-plus"></i> Добавить товар</button>
+                    <table class="table table-bordered table-sm">
+                        <thead><tr><th>Наименование</th><th>Кол-во (шт)</th><th>Вес</th><th>Размер</th><th>Себест.</th><th>Цена (+20%)</th><th></th></tr></thead>
+                        <tbody id="stockTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- СОТРУДНИКИ -->
+        <div class="tab-pane fade" id="employees">
+            <div class="card">
+                <div class="card-header">Персонал + ЗП / Увольнение</div>
+                <div class="card-body">
+                    <button class="btn btn-sm btn-success mb-2" data-bs-toggle="modal" data-bs-target="#addEmployeeModal"><i class="fas fa-user-plus"></i> Добавить работника</button>
+                    <table class="table table-sm table-striped">
+                        <thead><tr><th>ФИО</th><th>Паспорт/реквизиты</th><th>Должность</th><th>ЗП (ставка/%)</th><th>Статус</th><th>Действия</th></tr></thead>
+                        <tbody id="employeesTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ЗАКАЗЫ (РЕМОНТ) -->
+        <div class="tab-pane fade" id="orders">
+            <div class="card">
+                <div class="card-header">Приём заказов, дедлайн, таймер, бонус/штраф</div>
+                <div class="card-body">
+                    <button class="btn btn-primary mb-2" data-bs-toggle="modal" data-bs-target="#newOrderModal"><i class="fas fa-clipboard-list"></i> Принять заказ</button>
+                    <input type="text" id="searchOrders" class="form-control mb-2" placeholder="🔍 Поиск по заказчику, модели, телефону...">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead><tr><th>ID</th><th>Заказчик/тел</th><th>Модель</th><th>Проблема</th><th>Цена</th><th>Дедлайн (осталось)</th><th>Статус</th><th>Мастер</th><th>Действия</th></tr></thead>
+                            <tbody id="ordersTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ФИНАНСЫ -->
+        <div class="tab-pane fade" id="finance">
+            <div class="card">
+                <div class="card-header">Касса / Расходы / Приходы</div>
+                <div class="card-body">
+                    <h4>Баланс: <span id="balanceSpan" class="text-success fw-bold">0</span> руб.</h4>
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addTransactionModal"><i class="fas fa-wallet"></i> Операция (расход/приход)</button>
+                    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#salaryModal"><i class="fas fa-calculator"></i> Начислить ЗП</button>
+                    <hr>
+                    <h6>История операций</h6>
+                    <table class="table table-sm">
+                        <thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Описание</th></tr></thead>
+                        <tbody id="transactionsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ЧЁРНЫЙ СПИСОК -->
+        <div class="tab-pane fade" id="blacklist">
+            <div class="card">
+                <div class="card-header">Клиенты с запретом обслуживания</div>
+                <div class="card-body">
+                    <button class="btn btn-sm btn-dark mb-2" data-bs-toggle="modal" data-bs-target="#addBlacklistModal"><i class="fas fa-ban"></i> Добавить в ЧС</button>
+                    <table class="table table-sm"><thead><tr><th>ФИО</th><th>Телефон</th><th>Причина</th><th></th></tr></thead><tbody id="blacklistTable"></tbody></table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ПРАЙС-ЛИСТ (скрытая вкладка через js) -->
+        <div class="tab-pane fade price-tab" id="priceListPane">
+            <div class="card">
+                <div class="card-header">Прайс на услуги</div>
+                <div class="card-body">
+                    <button class="btn btn-sm btn-info mb-2" data-bs-toggle="modal" data-bs-target="#addPriceModal"><i class="fas fa-plus"></i> Добавить позицию</button>
+                    <table class="table table-sm"><thead><tr><th>Название</th><th>Время исполнения</th><th>Цена (руб)</th><th></th></tr></thead><tbody id="priceTable"></tbody></table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- КАЛЕНДАРЬ -->
+        <div class="tab-pane fade" id="calendar">
+            <div class="card">
+                <div class="card-header">Выборка по дате (заказы)</div>
+                <div class="card-body">
+                    <input type="date" id="calendarDate" class="form-control w-50 d-inline">
+                    <button class="btn btn-primary" id="showDateOrders"><i class="fas fa-search"></i> Показать</button>
+                    <div class="mt-3"><h6>Заказы за выбранный день:</h6><div id="dailyOrdersList"></div></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- НАСТРОЙКИ (проценты, штраф/бонус) -->
+        <div class="tab-pane fade" id="settings">
+            <div class="card">
+                <div class="card-header">Параметры системы</div>
+                <div class="card-body">
+                    <label>Процент мастеру от стоимости ремонта (%) :</label>
+                    <input type="number" id="masterPercent" class="form-control w-25 mb-2" step="1" value="67">
+                    <label>Бонус/штраф за скорость (дни):</label>
+                    <input type="number" id="bonusDays" class="form-control w-25 mb-2" value="3">
+                    <label>Размер бонуса/штрафа (%) :</label>
+                    <input type="number" id="bonusPercent" class="form-control w-25 mb-2" value="10">
+                    <button class="btn btn-warning" id="resetDemoData">Сброс демо-данных</button>
+                    <p class="mt-2 text-muted small">*Добавление товара на склад = расход. Приём заказа = доход. Завершение ремонта: начисление ЗП мастеру + бонус/штраф.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- МОДАЛЬНЫЕ ОКНА -->
+<div class="modal fade" id="addStockModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>Добавить товар</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+    <input type="text" id="stockName" placeholder="Наименование" class="form-control mb-2"><input type="number" id="stockQty" placeholder="Кол-во" class="form-control mb-2"><input type="text" id="stockWeight" placeholder="Вес" class="form-control mb-2"><input type="text" id="stockSize" placeholder="Размер" class="form-control mb-2"><input type="number" id="stockCost" placeholder="Себестоимость" class="form-control mb-2">
+</div><div class="modal-footer"><button class="btn btn-primary" id="confirmAddStock">Добавить (минус из кассы)</button></div></div></div></div>
+
+<div class="modal fade" id="addEmployeeModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>Новый сотрудник</h5></div><div class="modal-body">
+    <input type="text" id="empName" placeholder="ФИО" class="form-control mb-2"><input type="text" id="empPassport" placeholder="Паспортные данные" class="form-control mb-2"><input type="text" id="empDetails" placeholder="Реквизиты" class="form-control mb-2">
+    <select id="empPosition" class="form-select mb-2"><option value="repair">Ремонт (% от работ)</option><option value="reception">Приемка (оклад)</option><option value="cleaning">Уборка (оклад)</option></select>
+    <input type="number" id="empSalary" placeholder="Оклад / % (если ремонт - процент от выручки)" class="form-control mb-2" value="0">
+</div><div class="modal-footer"><button class="btn btn-success" id="confirmAddEmp">Добавить</button></div></div></div></div>
+
+<div class="modal fade" id="newOrderModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5>Приём заказа</h5></div><div class="modal-body">
+    <div class="row"><div class="col-md-6"><input type="text" id="orderCustomer" placeholder="ФИО владельца" class="form-control mb-2"><input type="text" id="orderPhone" placeholder="Телефон" class="form-control mb-2"><input type="text" id="orderModel" placeholder="Модель / Название" class="form-control mb-2"><input type="text" id="orderSN" placeholder="S/N, IMEI" class="form-control mb-2"></div>
+    <div class="col-md-6"><textarea id="orderProblem" placeholder="Основная проблема" rows="2" class="form-control mb-2"></textarea><textarea id="orderDetected" placeholder="Обнаруженная проблема" rows="2" class="form-control mb-2"></textarea></div></div>
+    <input type="number" id="orderPrice" placeholder="Стоимость ремонта (руб)" class="form-control mb-2"><input type="datetime-local" id="orderDeadline" class="form-control mb-2"><label>Ответственный мастер:</label>
+    <select id="orderMaster" class="form-select mb-2"></select><div class="form-check"><input class="form-check-input" type="checkbox" id="orderWaitingParts"><label class="form-check-label">Ожидание запчасти</label></div>
+</div><div class="modal-footer"><button class="btn btn-primary" id="confirmOrder">Принять заказ (+ в кассу)</button></div></div></div></div>
+
+<div class="modal fade" id="addTransactionModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>Операция</h5></div><div class="modal-body">
+    <select id="transType" class="form-select mb-2"><option value="income">Приход</option><option value="expense">Расход</option></select>
+    <input type="text" id="transCat" placeholder="Категория (аренда, свет, вода, реклама, запчасти, ЗП...)" class="form-control mb-2">
+    <input type="number" id="transAmount" placeholder="Сумма" class="form-control mb-2"><input type="text" id="transDesc" placeholder="Описание" class="form-control">
+</div><div class="modal-footer"><button class="btn btn-secondary" id="addTransactionBtn">Добавить</button></div></div></div></div>
+
+<div class="modal fade" id="salaryModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>Начислить зарплату сотруднику</h5></div><div class="modal-body">
+    <select id="salaryEmpSelect" class="form-select mb-2"></select><input type="number" id="salaryAmount" placeholder="Сумма начисления" class="form-control"><small>Учитывайте оклад/проценты вручную или автоматика при завершении заказа</small>
+</div><div class="modal-footer"><button class="btn btn-warning" id="paySalaryBtn">Выплатить (расход)</button></div></div></div></div>
+
+<div class="modal fade" id="addBlacklistModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>Добавить в ЧС</h5></div><div class="modal-body">
+    <input type="text" id="blName" placeholder="ФИО" class="form-control mb-2"><input type="text" id="blPhone" placeholder="Телефон" class="form-control mb-2"><input type="text" id="blReason" placeholder="Причина" class="form-control">
+</div><div class="modal-footer"><button class="btn btn-dark" id="addToBlacklistBtn">Добавить</button></div></div></div></div>
+
+<div class="modal fade" id="addPriceModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>Позиция прайса</h5></div><div class="modal-body">
+    <input type="text" id="priceName" placeholder="Название услуги" class="form-control mb-2"><input type="text" id="priceTime" placeholder="Время исполнения" class="form-control mb-2"><input type="number" id="priceAmount" placeholder="Цена" class="form-control">
+</div><div class="modal-footer"><button class="btn btn-info" id="addPriceItemBtn">Добавить</button></div></div></div></div>
+
+<script>
+    // ------------------ Хранилище ------------------
+    let db = {
+        warehouse: [],
+        employees: [],
+        orders: [],
+        finances: [],
+        blacklist: [],
+        pricelist: []
+    };
+    function loadData() { let d = localStorage.getItem("serviceDB"); if(d) db = JSON.parse(d); else initDemoData(); saveData(); renderAll(); }
+    function saveData() { localStorage.setItem("serviceDB", JSON.stringify(db)); }
+    
+    function initDemoData() {
+        db.warehouse = [{id:1,name:"Дисплей iPhone",quantity:5,weight:"0.1кг",size:"6.1",costPrice:1500},{id:2,name:"Аккумулятор",quantity:10,weight:"50г",size:"стандарт",costPrice:800}];
+        db.employees = [{id:1,fullName:"Иван Петров",passport:"4512 345678",details:"счет 40817",position:"repair",salaryValue:67,fired:false},{id:2,fullName:"Ольга Смирнова",passport:"4512 111222",details:"",position:"reception",salaryValue:30000,fired:false}];
+        db.orders = [];
+        let now = Date.now();
+        let deadline = new Date(now + 2*86400000);
+        db.orders.push({id:1,customerName:"Алексей",phone:"+79111234567",deviceModel:"Xiaomi Note",serialNumber:"SN123",imei:"356789",mainProblem:"Не включается",detectedProblem:"Батарея",price:2500,deadline:deadline.toISOString(),startTime:new Date(now-86400000).toISOString(),status:"in_progress",responsibleEmployeeId:1});
+        db.finances = [{id:1,type:"income",category:"Прием заказа",amount:2500,date:new Date().toISOString(),desc:"Заказ №1"}];
+        db.blacklist = [];
+        db.pricelist = [{id:1,name:"Замена экрана",executionTime:"2 часа",price:2000},{id:2,name:"Чистка от пыли",executionTime:"1 день",price:800}];
+        recalcBalanceFromOps();
+    }
+    
+    function recalcBalanceFromOps() { let bal = db.finances.reduce((acc,op)=> op.type==='income'?acc+op.amount:acc-op.amount,0); return bal; }
+    function addTransaction(type,category,amount,desc) { db.finances.push({id:Date.now(),type,category,amount,date:new Date().toISOString(),desc}); saveData(); renderFinance(); }
+    
+    // рендеры
+    function renderAll() { renderStock(); renderEmployees(); renderOrders(); renderFinance(); renderBlacklist(); renderPriceList(); renderMasterSelect(); renderSalaryEmpSelect(); }
+    function renderStock() { let t = db.warehouse.map(w=>`<tr><td>${w.name}</td><td>${w.quantity}</td><td>${w.weight||'-'}</td><td>${w.size||'-'}</td><td>${w.costPrice}</td><td>${Math.round(w.costPrice*1.2)}</td><td><button class="btn btn-sm btn-danger delStock" data-id="${w.id}"><i class="fas fa-trash"></i></button></td></tr>`).join(''); document.getElementById('stockTable').innerHTML = t; document.querySelectorAll('.delStock').forEach(btn=>btn.addEventListener('click',e=>{let id=parseInt(btn.dataset.id); db.warehouse=db.warehouse.filter(w=>w.id!=id); saveData(); renderStock();})); }
+    function renderEmployees() { let t = db.employees.filter(e=>!e.fired).map(e=>`<tr><td>${e.fullName}</td><td>${e.passport} / ${e.details}</td><td>${e.position}</td><td>${e.salaryValue}</td><td>Активен</td><td><button class="btn btn-sm btn-warning fireEmp" data-id="${e.id}">Уволить</button></td></tr>`).join(''); document.getElementById('employeesTable').innerHTML = t; document.querySelectorAll('.fireEmp').forEach(btn=>btn.addEventListener('click',e=>{let id=parseInt(btn.dataset.id); let reason=prompt("Причина увольнения:"); if(reason){ let emp=db.employees.find(e=>e.id==id); if(emp){emp.fired=true; emp.fireReason=reason; saveData(); renderEmployees();}} else alert("Причина обязательна");}));}
+    
+    function renderOrders() { let search = document.getElementById('searchOrders')?.value.toLowerCase()||''; let ordersFilter = db.orders.filter(o=>o.customerName?.toLowerCase().includes(search)||o.deviceModel?.toLowerCase().includes(search)||o.phone?.includes(search)); let tbody = document.getElementById('ordersTable'); tbody.innerHTML = ''; ordersFilter.forEach(o=>{ let emp = db.employees.find(e=>e.id==o.responsibleEmployeeId); let deadlineDate = new Date(o.deadline); let now = new Date(); let diff = deadlineDate - now; let timerText = o.status==='completed'?'Завершен':(diff>0?Math.floor(diff/1000/3600/24)+'д '+Math.floor((diff%86400000)/3600000)+'ч':'Просрочен'); let statusBadge = o.status==='in_progress'?'<span class="badge bg-warning">В работе</span>':(o.status==='waiting_parts'?'<span class="badge bg-info">Ждём запчасть</span>':'<span class="badge bg-success">Завершён</span>'); let row = `<tr><td>${o.id}</td><td>${o.customerName}<br><small>${o.phone}</small></td><td>${o.deviceModel}</td><td>${o.mainProblem.substring(0,20)}</td><td>${o.price}₽</td><td><span class="timer" data-id="${o.id}" data-deadline="${o.deadline}" data-status="${o.status}">${timerText}</span></td><td>${statusBadge}</td><td>${emp?.fullName||'-'}</td><td><button class="btn btn-sm btn-success completeOrder" data-id="${o.id}" ${o.status==='completed'?'disabled':''}>✅ Завершить</button> <button class="btn btn-sm btn-secondary waitParts" data-id="${o.id}" ${o.status==='completed'?'disabled':''}>⏳ Запчасть</button></td></tr>`; tbody.insertAdjacentHTML('beforeend',row); }); document.querySelectorAll('.completeOrder').forEach(btn=>btn.addEventListener('click',e=>{ let id=parseInt(btn.dataset.id); completeOrder(id); })); document.querySelectorAll('.waitParts').forEach(btn=>btn.addEventListener('click',e=>{ let id=parseInt(btn.dataset.id); let order=db.orders.find(o=>o.id==id); if(order && order.status!=='completed'){ order.status = order.status==='waiting_parts'?'in_progress':'waiting_parts'; saveData(); renderOrders(); } })); startTimers(); }
+    function startTimers() { setInterval(()=>{ renderOrders(); }, 1000); }
+    function completeOrder(orderId) { let order = db.orders.find(o=>o.id==orderId); if(!order || order.status==='completed') return; let completedAt = new Date(); order.completedAt = completedAt.toISOString(); order.status = 'completed'; let start = new Date(order.startTime); let days = (completedAt - start) / (1000*3600*24); let bonusDays = parseInt(document.getElementById('bonusDays').value)||3; let bonusPercent = parseInt(document.getElementById('bonusPercent').value)||10; let masterPercent = parseInt(document.getElementById('masterPercent').value)||67; let baseMasterSalary = order.price * masterPercent / 100; let factor = 1; if(days < bonusDays) factor = 1 + bonusPercent/100; else if(days > bonusDays) factor = 1 - bonusPercent/100; let finalSalary = Math.round(baseMasterSalary * factor); let master = db.employees.find(e=>e.id==order.responsibleEmployeeId); if(master && master.position==='repair'){ addTransaction('expense','ЗП мастеру (ремонт)',finalSalary,`Заказ ${order.id} (${order.deviceModel}) бонус/штраф`); } saveData(); renderOrders(); renderFinance(); alert(`Ремонт завершен! Мастер получит ${finalSalary} руб. (${factor>1?'бонус +':factor<1?'штраф -':''}${Math.abs((factor-1)*100)}%)`); }
+    
+    function renderFinance() { let balance = recalcBalanceFromOps(); document.getElementById('balanceSpan').innerText = balance; let t = db.finances.slice().reverse().map(f=>`<tr><td>${new Date(f.date).toLocaleString()}</td><td>${f.type==='income'?'Доход':'Расход'}</td><td>${f.category}</td><td>${f.amount}₽</td><td>${f.desc||''}</td></tr>`).join(''); document.getElementById('transactionsTable').innerHTML = t; }
+    function renderBlacklist() { let t = db.blacklist.map(b=>`<tr><td>${b.fullName}</td><td>${b.phone}</td><td>${b.reason}</td><td><button class="btn btn-sm btn-outline-danger delBlack" data-id="${b.id}"><i class="fas fa-times"></i></button></td></tr>`).join(''); document.getElementById('blacklistTable').innerHTML = t; document.querySelectorAll('.delBlack').forEach(btn=>btn.addEventListener('click',e=>{let id=parseInt(btn.dataset.id); db.blacklist=db.blacklist.filter(b=>b.id!=id); saveData(); renderBlacklist();})); }
+    function renderPriceList() { let t = db.pricelist.map(p=>`<tr><td>${p.name}</td><td>${p.executionTime}</td><td>${p.price}₽</td><td><button class="btn btn-sm btn-danger delPrice" data-id="${p.id}">Удалить</button></td></tr>`).join(''); document.getElementById('priceTable').innerHTML = t; document.querySelectorAll('.delPrice').forEach(btn=>btn.addEventListener('click',e=>{let id=parseInt(btn.dataset.id); db.pricelist=db.pricelist.filter(p=>p.id!=id); saveData(); renderPriceList();})); }
+    function renderMasterSelect() { let opts = db.employees.filter(e=>!e.fired && e.position==='repair').map(e=>`<option value="${e.id}">${e.fullName}</option>`).join(''); document.getElementById('orderMaster').innerHTML = opts; }
+    function renderSalaryEmpSelect() { let opts = db.employees.filter(e=>!e.fired).map(e=>`<option value="${e.id}">${e.fullName} (${e.position})</option>`).join(''); document.getElementById('salaryEmpSelect').innerHTML = opts; }
+    
+    // Добавление товара со списанием
+    document.getElementById('confirmAddStock')?.addEventListener('click',()=>{ let name=document.getElementById('stockName').value; let qty=parseInt(document.getElementById('stockQty').value); let weight=document.getElementById('stockWeight').value; let size=document.getElementById('stockSize').value; let cost=parseFloat(document.getElementById('stockCost').value); if(name && qty && cost){ let newId=Date.now(); db.warehouse.push({id:newId,name,quantity:qty,weight,size,costPrice:cost}); addTransaction('expense','Покупка товара',cost,`Закупка: ${name} x${qty}`); saveData(); renderStock(); renderFinance(); bootstrap.Modal.getInstance(document.getElementById('addStockModal')).hide(); } else alert("Заполните наименование, кол-во и себестоимость"); });
+    document.getElementById('confirmAddEmp')?.addEventListener('click',()=>{ let name=document.getElementById('empName').value; let passport=document.getElementById('empPassport').value; let details=document.getElementById('empDetails').value; let pos=document.getElementById('empPosition').value; let sal=parseFloat(document.getElementById('empSalary').value); if(name){ db.employees.push({id:Date.now(),fullName:name,passport,details,position:pos,salaryValue:sal,fired:false}); saveData(); renderEmployees(); renderMasterSelect(); bootstrap.Modal.getInstance(document.getElementById('addEmployeeModal')).hide();} else alert("Введите ФИО"); });
+    document.getElementById('confirmOrder')?.addEventListener('click',()=>{ let cust=document.getElementById('orderCustomer').value; let phone=document.getElementById('orderPhone').value; let model=document.getElementById('orderModel').value; let sn=document.getElementById('orderSN').value; let problem=document.getElementById('orderProblem').value; let detected=document.getElementById('orderDetected').value; let price=parseFloat(document.getElementById('orderPrice').value); let deadlineStr=document.getElementById('orderDeadline').value; let masterId=parseInt(document.getElementById('orderMaster').value); let waiting=document.getElementById('orderWaitingParts').checked; if(cust && price && deadlineStr && masterId){ let deadline = new Date(deadlineStr).toISOString(); let newId=Date.now(); let newOrder={id:newId,customerName:cust,phone,deviceModel:model,serialNumber:sn,imei:'',mainProblem:problem,detectedProblem:detected,price,deadline,startTime:new Date().toISOString(),status:waiting?'waiting_parts':'in_progress',responsibleEmployeeId:masterId}; db.orders.push(newOrder); addTransaction('income','Прием заказа',price,`Заказ ${newId} от ${cust}`); saveData(); renderOrders(); bootstrap.Modal.getInstance(document.getElementById('newOrderModal')).hide(); } else alert("Заполните клиента, цену, дедлайн и мастера"); });
+    document.getElementById('addTransactionBtn')?.addEventListener('click',()=>{ let type=document.getElementById('transType').value; let cat=document.getElementById('transCat').value; let amt=parseFloat(document.getElementById('transAmount').value); let desc=document.getElementById('transDesc').value; if(cat && amt){ addTransaction(type,cat,amt,desc); bootstrap.Modal.getInstance(document.getElementById('addTransactionModal')).hide(); document.getElementById('transCat').value=''; document.getElementById('transAmount').value=''; } else alert("Заполните категорию и сумму"); });
+    document.getElementById('paySalaryBtn')?.addEventListener('click',()=>{ let empId=parseInt(document.getElementById('salaryEmpSelect').value); let amount=parseFloat(document.getElementById('salaryAmount').value); let emp=db.employees.find(e=>e.id==empId); if(emp && amount>0){ addTransaction('expense','Зарплата',amount,`Выплата ${emp.fullName}`); saveData(); renderFinance(); bootstrap.Modal.getInstance(document.getElementById('salaryModal')).hide(); } else alert("Введите сумму"); });
+    document.getElementById('addToBlacklistBtn')?.addEventListener('click',()=>{ let name=document.getElementById('blName').value; let phone=document.getElementById('blPhone').value; let reason=document.getElementById('blReason').value; if(name && phone){ db.blacklist.push({id:Date.now(),fullName:name,phone,reason}); saveData(); renderBlacklist(); bootstrap.Modal.getInstance(document.getElementById('addBlacklistModal')).hide(); } else alert("ФИО и телефон обязательны"); });
+    document.getElementById('addPriceItemBtn')?.addEventListener('click',()=>{ let name=document.getElementById('priceName').value; let time=document.getElementById('priceTime').value; let price=parseFloat(document.getElementById('priceAmount').value); if(name && price){ db.pricelist.push({id:Date.now(),name,executionTime:time,price}); saveData(); renderPriceList(); bootstrap.Modal.getInstance(document.getElementById('addPriceModal')).hide(); } else alert("Введите название и цену"); });
+    document.getElementById('showDateOrders')?.addEventListener('click',()=>{ let selDate=document.getElementById('calendarDate').value; if(selDate){ let filtered = db.orders.filter(o=>new Date(o.startTime).toISOString().slice(0,10)===selDate || (o.completedAt && new Date(o.completedAt).toISOString().slice(0,10)===selDate)); let html = filtered.length?filtered.map(o=>`<div class="border p-2 mb-1">${o.customerName} | ${o.deviceModel} | ${o.price}₽ | статус:${o.status}</div>`).join('') : '<p>Нет заказов</p>'; document.getElementById('dailyOrdersList').innerHTML = html; } });
+    document.getElementById('resetDemoData')?.addEventListener('click',()=>{ initDemoData(); saveData(); renderAll(); alert("Данные сброшены"); });
+    document.getElementById('priceTabBtn')?.addEventListener('click',()=>{ let pricePane = document.querySelector('.price-tab'); if(pricePane){ let tab = new bootstrap.Tab(pricePane); tab.show(); } });
+    document.getElementById('searchOrders')?.addEventListener('input',()=>renderOrders());
+    
+    loadData();
+    setInterval(()=>{ if(document.getElementById('orders')?.classList.contains('active')) renderOrders(); }, 2000);
+</script>
+<div class="footer">Сервис центр — учёт склада, заказов, ЗП, дедлайнов, чёрный список, финансы. Данные в localStorage.</div>
+</body>
+</html>

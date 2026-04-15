@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">Сотрудники</div>
+    <div class="card-body">
+        <button class="btn btn-success mb-2" data-bs-toggle="modal" data-bs-target="#addEmpModal">➕ Добавить</button>
+        <table class="table table-striped">
+            <thead><tr><th>ФИО</th><th>Паспорт</th><th>Должность</th><th>ЗП</th><th></th></tr></thead>
+            <tbody id="empTable"></tbody>
+        </table>
+    </div>
+</div>
+<div class="modal fade" id="addEmpModal"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5>Новый сотрудник</h5></div>
+    <div class="modal-body">
+        <input type="text" id="empName" class="form-control mb-2" placeholder="ФИО">
+        <input type="text" id="empPassport" class="form-control mb-2" placeholder="Паспорт">
+        <input type="text" id="empDetails" class="form-control mb-2" placeholder="Реквизиты">
+        <select id="empPosition" class="form-select mb-2">
+            <option value="repair">Ремонт</option><option value="reception">Приёмка</option><option value="cleaning">Уборка</option>
+        </select>
+        <input type="number" id="empSalary" class="form-control mb-2" placeholder="Оклад / %">
+    </div>
+    <div class="modal-footer"><button class="btn btn-success" id="saveEmp">Сохранить</button></div>
+</div></div></div>
+<script>
+    async function loadEmployees() {
+        const res = await fetch('/api/employees');
+        const emps = await res.json();
+        const tbody = document.getElementById('empTable');
+        tbody.innerHTML = '';
+        emps.forEach(e => {
+            const row = `<tr>
+                <td>${e.full_name}</td><td>${e.passport} / ${e.details}</td><td>${e.position}</td><td>${e.salary_value}</td>
+                <td><button class="btn btn-sm btn-warning fire-emp" data-id="${e.id}">Уволить</button></td>
+            </tr>`;
+            tbody.insertAdjacentHTML('beforeend', row);
+        });
+        document.querySelectorAll('.fire-emp').forEach(btn => btn.addEventListener('click', async () => {
+            const reason = prompt('Причина увольнения:');
+            if(reason) await fetch(`/api/employees/${btn.dataset.id}/fire`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reason})});
+            loadEmployees();
+        }));
+    }
+    document.getElementById('saveEmp')?.addEventListener('click', async () => {
+        const full_name = document.getElementById('empName').value;
+        const passport = document.getElementById('empPassport').value;
+        const details = document.getElementById('empDetails').value;
+        const position = document.getElementById('empPosition').value;
+        const salary_value = parseFloat(document.getElementById('empSalary').value);
+        if(full_name) {
+            await fetch('/api/employees', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({full_name, passport, details, position, salary_value})});
+            bootstrap.Modal.getInstance(document.getElementById('addEmpModal')).hide();
+            loadEmployees();
+        } else alert('Введите ФИО');
+    });
+    loadEmployees();
+</script>
+{% endblock %}
