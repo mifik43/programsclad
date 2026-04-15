@@ -11,7 +11,7 @@
     </div>
     <div class="card-body">
         <input type="text" id="searchOrders" class="form-control mb-3" placeholder="🔍 Поиск по заказчику, модели, телефону...">
-        <div class="table-responsive">
+        <div class="table-responsive-stack">
             <table class="table table-bordered table-hover">
                 <thead class="table-dark">
                     <tr>
@@ -19,9 +19,7 @@
                         <th>Цена</th><th>Дедлайн</th><th>Статус</th><th>Проверка</th><th>Мастер</th><th>Действия</th>
                     </tr>
                 </thead>
-                <tbody id="ordersTable">
-                    <tr><td colspan="10" class="text-center">Загрузка...</td></tr>
-                </tbody>
+                <tbody id="ordersTable"><tr><td colspan="10" class="text-center">Загрузка...</td></tr></tbody>
             </table>
         </div>
     </div>
@@ -67,8 +65,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-primary" id="confirmOrder">✅ Принять заказ (+ в кассу)</button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button class="btn btn-primary" id="confirmOrder">✅ Принять заказ (+ в кассу)</button>
             </div>
         </div>
     </div>
@@ -125,7 +123,6 @@
     </div>
 </div>
 
-<!-- Модальное окно: Проверка техники перед выдачей -->
 <!-- Модальное окно: Проверка техники с чек-листом -->
 <div class="modal fade" id="checkModal" tabindex="-1">
     <div class="modal-dialog">
@@ -142,19 +139,19 @@
                 <label>Чек-лист проверки:</label>
                 <div class="border p-2 mb-3">
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="check_ext" value="ext">
+                        <input class="form-check-input" type="checkbox" id="check_ext">
                         <label class="form-check-label">Внешний вид без повреждений</label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="check_func" value="func">
+                        <input class="form-check-input" type="checkbox" id="check_func">
                         <label class="form-check-label">Функциональность (включение, экран, кнопки)</label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="check_acc" value="acc">
+                        <input class="form-check-input" type="checkbox" id="check_acc">
                         <label class="form-check-label">Комплектация (ЗУ, кабель, коробка)</label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="check_work" value="work">
+                        <input class="form-check-input" type="checkbox" id="check_work">
                         <label class="form-check-label">Работоспособность после ремонта</label>
                     </div>
                 </div>
@@ -171,6 +168,7 @@
         </div>
     </div>
 </div>
+
 <!-- Модальное окно: История изменений -->
 <div class="modal fade" id="historyModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -189,7 +187,6 @@
 <script>
     let timerInterval = null;
 
-    // Загрузка списка заказов
     async function loadOrders() {
         const res = await fetch('/api/orders');
         const orders = await res.json();
@@ -225,30 +222,20 @@
                                 (o.status === 'completed' ? '<span class="badge bg-danger">⚠️ Не проверено</span>' : 
                                 '<span class="badge bg-secondary">—</span>');
             let actions = '';
-            // Редактирование (admin, manager, receiver)
             if ({{ current_user.has_role('admin','manager','receiver')|tojson }}) {
                 actions += `<button class="btn btn-sm btn-info edit-order me-1" data-id="${o.id}" title="Редактировать"><i class="fas fa-edit"></i></button> `;
             }
-            // Завершение (admin, manager, master) – только если не завершён
             if (o.status !== 'completed' && {{ current_user.has_role('admin','manager','master')|tojson }}) {
                 actions += `<button class="btn btn-sm btn-success complete-order me-1" data-id="${o.id}" title="Завершить ремонт"><i class="fas fa-check-circle"></i></button> `;
             }
-            // Проверка (admin, manager) – только для завершённых, но не проверенных
             if (o.status === 'completed' && !o.is_checked && {{ current_user.has_role('admin','manager')|tojson }}) {
                 actions += `<button class="btn btn-sm btn-warning check-order me-1" data-id="${o.id}" title="Проверить технику"><i class="fas fa-clipboard-check"></i></button> `;
-            }
-            // История (все роли)
-            actions += `<button class="btn btn-sm btn-secondary history-order" data-id="${o.id}" title="История изменений"><i class="fas fa-history"></i></button>`;
-            
-            if ({{ current_user.has_role('admin','manager')|tojson }} && o.status !== 'completed') {
-                actions += `<button class="btn btn-sm btn-primary pay-order me-1" data-id="${o.id}" title="Создать ссылку на оплату"><i class="fas fa-credit-card"></i></button> `;
-            }
-            if ({{ current_user.has_role('admin','accountant','manager')|tojson }} && o.status === 'completed') {
-                actions += `<button class="btn btn-sm btn-info receipt-order me-1" data-id="${o.id}" title="Сформировать чек"><i class="fas fa-receipt"></i></button> `;
             }
             if (o.status === 'completed') {
                 actions += `<a href="/api/orders/${o.id}/pdf-act" class="btn btn-sm btn-danger me-1" target="_blank" title="Акт выполненных работ"><i class="fas fa-file-pdf"></i></a> `;
             }
+            actions += `<button class="btn btn-sm btn-secondary history-order" data-id="${o.id}" title="История изменений"><i class="fas fa-history"></i></button>`;
+            
             const row = `
                 <tr>
                     <td>${o.id}</td>
@@ -268,32 +255,15 @@
         attachOrderButtons();
     }
 
-    function escapeHtml(str) {
-        if(!str) return '';
-        return str.replace(/[&<>]/g, function(m) {
-            if(m === '&') return '&amp;';
-            if(m === '<') return '&lt;';
-            if(m === '>') return '&gt;';
-            return m;
-        });
-    }
+    function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
 
-    // Привязка обработчиков к динамическим кнопкам
     function attachOrderButtons() {
         document.querySelectorAll('.edit-order').forEach(btn => btn.addEventListener('click', () => openEditModal(btn.dataset.id)));
         document.querySelectorAll('.check-order').forEach(btn => btn.addEventListener('click', () => openCheckModal(btn.dataset.id)));
         document.querySelectorAll('.complete-order').forEach(btn => btn.addEventListener('click', () => completeOrder(btn.dataset.id)));
         document.querySelectorAll('.history-order').forEach(btn => btn.addEventListener('click', () => showOrderHistory(btn.dataset.id)));
-        document.querySelectorAll('.send-act-email').forEach(btn => btn.addEventListener('click', async () => {
-    const id = btn.dataset.id;
-    const res = await fetch(`/api/orders/${id}/send-act-email`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
-    const data = await res.json();
-    if(data.status === 'ok') alert('Акт отправлен на email клиента');
-    else alert('Ошибка: ' + (data.error || 'неизвестная'));
-}));
     }
 
-    // Редактирование
     async function openEditModal(orderId) {
         const res = await fetch('/api/orders');
         const orders = await res.json();
@@ -336,21 +306,16 @@
             status: document.getElementById('editStatus').value,
             responsible_employee_id: parseInt(document.getElementById('editMaster').value)
         };
-        await fetch(`/api/orders/${id}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
+        await fetch(`/api/orders/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
         bootstrap.Modal.getInstance(document.getElementById('editOrderModal')).hide();
         loadOrders();
     });
 
-    // Завершение заказа
     async function completeOrder(orderId) {
-        const masterPercent = prompt("Процент мастеру от стоимости (67):", 67);
-        const bonusDays = prompt("Бонусные дни (3):", 3);
-        const bonusPercent = prompt("Бонус/штраф % (10):", 10);
-        const usedParts = confirm("Использовались ли запчасти для этого ремонта? (создать гарантию на 30 дней)");
+        const masterPercent = prompt("Процент мастеру от стоимости (по умолчанию 67):", 67);
+        const bonusDays = prompt("Бонусные дни (по умолчанию 3):", 3);
+        const bonusPercent = prompt("Бонус/штраф % (по умолчанию 10):", 10);
+        const usedParts = confirm("Использовались ли запчасти? (создать гарантию на 30 дней)");
         if(!masterPercent || !bonusDays || !bonusPercent) return;
         const res = await fetch(`/api/orders/${orderId}/complete`, {
             method: 'POST',
@@ -367,64 +332,48 @@
             alert(`Ремонт завершён! Зарплата мастера: ${data.final_salary} руб.`);
             loadOrders();
             if(typeof loadBalance === 'function') loadBalance();
-        } else {
-            alert('Ошибка: ' + (data.error || 'неизвестная'));
-        }
-    }
-    if (o.status === 'completed') {
-    actions += `<a href="/api/orders/${o.id}/pdf-act" class="btn btn-sm btn-danger me-1" target="_blank" title="Акт выполненных работ"><i class="fas fa-file-pdf"></i></a> `;
-    if (o.email) {
-        actions += `<button class="btn btn-sm btn-primary send-act-email me-1" data-id="${o.id}" title="Отправить акт на email"><i class="fas fa-envelope"></i></button> `;
-        }
+        } else alert('Ошибка: ' + (data.error || 'неизвестная'));
     }
 
-    // Проверка техники
     function openCheckModal(orderId) {
         document.getElementById('checkOrderId').value = orderId;
         document.getElementById('checkerName').value = '';
+        document.getElementById('check_ext').checked = false;
+        document.getElementById('check_func').checked = false;
+        document.getElementById('check_acc').checked = false;
+        document.getElementById('check_work').checked = false;
         document.getElementById('checkRefusedWithParts').checked = false;
         new bootstrap.Modal(document.getElementById('checkModal')).show();
     }
     document.getElementById('confirmCheck')?.addEventListener('click', async () => {
-    const id = document.getElementById('checkOrderId').value;
-    const checker = document.getElementById('checkerName').value.trim();
-    if(!checker) {
-        alert('Укажите ФИО проверяющего сотрудника');
-        return;
-    }
-    const checklist = {
-        exterior: document.getElementById('check_ext').checked,
-        functionality: document.getElementById('check_func').checked,
-        accessories: document.getElementById('check_acc').checked,
-        working: document.getElementById('check_work').checked
-    };
-    const refused = document.getElementById('checkRefusedWithParts').checked;
-    const res = await fetch(`/api/orders/${id}/mark-checked`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({checked_by: checker, refused_with_parts: refused, checklist: checklist})
-    });
-    if(res.ok) {
+        const id = document.getElementById('checkOrderId').value;
+        const checker = document.getElementById('checkerName').value.trim();
+        if(!checker) { alert('Укажите ФИО проверяющего сотрудника'); return; }
+        const checklist = {
+            exterior: document.getElementById('check_ext').checked,
+            functionality: document.getElementById('check_func').checked,
+            accessories: document.getElementById('check_acc').checked,
+            working: document.getElementById('check_work').checked
+        };
+        const refused = document.getElementById('checkRefusedWithParts').checked;
+        await fetch(`/api/orders/${id}/mark-checked`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({checked_by: checker, refused_with_parts: refused, checklist: checklist})
+        });
         bootstrap.Modal.getInstance(document.getElementById('checkModal')).hide();
         loadOrders();
-        if(refused) {
-            alert('Клиент отказался от ремонта, но запчасть заказана. Не забудьте выставить счёт.');
-        }
-    } else {
-        alert('Ошибка при сохранении проверки');
-    }
-});
+        if(refused) alert('Клиент отказался от ремонта, но запчасть заказана. Не забудьте выставить счёт.');
+    });
 
-    // История заказа
     async function showOrderHistory(orderId) {
         document.getElementById('historyOrderId').innerText = orderId;
         const logsDiv = document.getElementById('historyLogs');
         logsDiv.innerHTML = '<div class="text-center">Загрузка...</div>';
         const res = await fetch(`/api/orders/${orderId}/logs`);
         const logs = await res.json();
-        if(logs.length === 0) {
-            logsDiv.innerHTML = '<p class="text-muted">История пуста</p>';
-        } else {
+        if(logs.length === 0) { logsDiv.innerHTML = '<p class="text-muted">История пуста</p>'; }
+        else {
             let html = '<table class="table table-sm table-bordered"><thead><tr><th>Дата</th><th>Пользователь</th><th>Действие</th><th>Комментарий</th></tr></thead><tbody>';
             logs.forEach(l => {
                 const date = new Date(l.created_at).toLocaleString();
@@ -432,9 +381,7 @@
                 switch(l.action) {
                     case 'create': actionText = '➕ Создание'; break;
                     case 'edit': actionText = '✏️ Редактирование'; break;
-                    case 'complete': actif (o.status === 'completed') {
-    actions += `<a href="/api/orders/${o.id}/pdf-act" class="btn btn-sm btn-danger me-1" target="_blank" title="Акт выполненных работ"><i class="fas fa-file-pdf"></i></a> `;
-}ionText = '✅ Завершение'; break;
+                    case 'complete': actionText = '✅ Завершение'; break;
                     case 'check': actionText = '🔍 Проверка'; break;
                     case 'wait_parts': actionText = '⏳ Ожидание запчасти'; break;
                     default: actionText = l.action;
@@ -447,7 +394,6 @@
         new bootstrap.Modal(document.getElementById('historyModal')).show();
     }
 
-    // Создание нового заказа
     document.getElementById('confirmOrder')?.addEventListener('click', async () => {
         const cust = document.getElementById('orderCustomer').value.trim();
         const phone = document.getElementById('orderPhone').value.trim();
@@ -470,81 +416,29 @@
             responsible_employee_id: masterId,
             waiting_parts: document.getElementById('orderWaitingParts').checked
         };
-        const res = await fetch('/api/orders', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
+        const res = await fetch('/api/orders', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
         const data = await res.json();
         if(data.status === 'ok') {
             alert(`Заказ #${data.id} успешно создан`);
             bootstrap.Modal.getInstance(document.getElementById('newOrderModal')).hide();
-            document.getElementById('newOrderModal').querySelectorAll('input, textarea, select').forEach(el => {
-                if(el.type !== 'checkbox') el.value = '';
-                else el.checked = false;
-            });
+            document.getElementById('newOrderModal').querySelectorAll('input, textarea, select').forEach(el => { if(el.type !== 'checkbox') el.value = ''; else el.checked = false; });
             loadOrders();
             if(typeof loadBalance === 'function') loadBalance();
-        } else {
-            alert('Ошибка при создании заказа');
-        }
+        } else alert('Ошибка: ' + (data.error || 'при создании заказа'));
     });
 
-    // Загрузка списка мастеров для выпадающих списков
     async function loadMastersForSelect() {
         const res = await fetch('/api/employees');
         const emps = await res.json();
         const masters = emps.filter(e => e.position === 'repair');
         const select = document.getElementById('orderMaster');
         select.innerHTML = '<option value="">Выберите мастера</option>';
-        masters.forEach(m => {
-            select.innerHTML += `<option value="${m.id}">${escapeHtml(m.full_name)}</option>`;
-        });
+        masters.forEach(m => { select.innerHTML += `<option value="${m.id}">${escapeHtml(m.full_name)}</option>`; });
     }
 
-    // Поиск
     document.getElementById('searchOrders')?.addEventListener('input', loadOrders);
-
-    // Инициализация
     loadMastersForSelect();
     loadOrders();
-    // Обновление таймера каждую минуту (не каждую секунду, чтобы не нагружать)
     setInterval(() => { loadOrders(); }, 60000);
-
-    // Оплата онлайн
-document.querySelectorAll('.pay-order').forEach(btn => {
-    btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        const res = await fetch(`/api/orders/${id}/create-payment`, {method: 'POST'});
-        const data = await res.json();
-        if(data.payment_url) {
-            const win = window.open(data.payment_url, '_blank');
-            // Через 5 секунд проверим статус (имитация)
-            setTimeout(async () => {
-                const statusRes = await fetch(`/api/payments/${data.transaction_id}/status`);
-                const statusData = await statusRes.json();
-                if(statusData.status === 'paid') {
-                    alert('Оплата прошла успешно!');
-                    loadOrders();
-                } else {
-                    alert('Оплата не подтверждена. Проверьте позже.');
-                }
-            }, 5000);
-        } else {
-            alert('Ошибка создания платежа');
-        }
-    });
-});
-
-// Чек
-document.querySelectorAll('.receipt-order').forEach(btn => {
-    btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        const res = await fetch(`/api/orders/${id}/receipt`, {method: 'POST'});
-        const data = await res.json();
-        alert(`Чек ${data.receipt_number} сформирован.`);
-    });
-});
-
 </script>
 {% endblock %}

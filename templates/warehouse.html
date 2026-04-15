@@ -1,235 +1,68 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">Товары на складе</div>
-            <div class="card-body">
-                <button class="btn btn-primary mb-2" data-bs-toggle="modal" data-bs-target="#addStockModal">➕ Добавить товар</button>
-                <button class="btn btn-outline-warning mb-2" id="checkLowStockBtn">⚠️ Проверить остатки</button>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-sm">
-                        <thead>
-                            <tr>
-                                <th>Наименование</th>
-                                <th>Кол-во</th>
-                                <th>Мин.</th>
-                                <th>Вес</th>
-                                <th>Размер</th>
-                                <th>Себест.</th>
-                                <th>Цена (+20%)</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="stockTable"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">Заявки на закупку</div>
-            <div class="card-body">
-                <button class="btn btn-success mb-2" data-bs-toggle="modal" data-bs-target="#newRequestModal">➕ Создать заявку</button>
-                <div class="table-responsive">
-                    <table class="table table-sm table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Товар</th>
-                                <th>Кол-во</th>
-                                <th>Статус</th>
-                                <th>Создан</th>
-                                <th>Действия</th>
-                            </tr>
-                        </thead>
-                        <tbody id="requestsTable"></tbody>
-                    </table>
-                </div>
-            </div>
+<div class="card">
+    <div class="card-header">📦 Склад</div>
+    <div class="card-body">
+        <button class="btn btn-primary mb-2" data-bs-toggle="modal" data-bs-target="#addStockModal">➕ Добавить товар</button>
+        <div class="table-responsive-stack">
+            <table class="table table-bordered">
+                <thead class="table-dark">
+                    <tr><th>Наименование</th><th>Кол-во</th><th>Вес</th><th>Размер</th><th>Себест.</th><th>Цена (+20%)</th><th></th></tr>
+                </thead>
+                <tbody id="stockTable"></tbody>
+            </table>
         </div>
     </div>
 </div>
 
-<!-- Модалка добавления товара -->
-<div class="modal fade" id="addStockModal"><div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5>Добавить товар</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body">
-        <input type="text" id="stockName" class="form-control mb-2" placeholder="Наименование">
-        <input type="number" id="stockQty" class="form-control mb-2" placeholder="Кол-во">
-        <input type="number" id="stockMinQty" class="form-control mb-2" placeholder="Мин. остаток (по умолч. 3)">
-        <input type="text" id="stockWeight" class="form-control mb-2" placeholder="Вес">
-        <input type="text" id="stockSize" class="form-control mb-2" placeholder="Размер">
-        <input type="number" id="stockCost" class="form-control mb-2" placeholder="Себестоимость">
+<div class="modal fade" id="addStockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5>Добавить товар</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <input type="text" id="stockName" class="form-control mb-2" placeholder="Наименование">
+                <input type="number" id="stockQty" class="form-control mb-2" placeholder="Кол-во">
+                <input type="text" id="stockWeight" class="form-control mb-2" placeholder="Вес">
+                <input type="text" id="stockSize" class="form-control mb-2" placeholder="Размер">
+                <input type="number" id="stockCost" class="form-control mb-2" placeholder="Себестоимость">
+            </div>
+            <div class="modal-footer"><button class="btn btn-primary" id="confirmAddStock">Добавить</button></div>
+        </div>
     </div>
-    <div class="modal-footer"><button class="btn btn-primary" id="confirmAddStock">Добавить</button></div>
-</div></div></div>
-
-<!-- Модалка создания заявки -->
-<div class="modal fade" id="newRequestModal"><div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5>Создать заявку на закупку</h5></div>
-    <div class="modal-body">
-        <select id="requestItemId" class="form-select mb-2"></select>
-        <input type="number" id="requestQuantity" class="form-control mb-2" placeholder="Количество">
-        <textarea id="requestReason" class="form-control mb-2" placeholder="Причина"></textarea>
-    </div>
-    <div class="modal-footer"><button class="btn btn-success" id="createRequestBtn">Создать</button></div>
-</div></div></div>
+</div>
 
 <script>
-    // Загрузка склада
     async function loadWarehouse() {
         const res = await fetch('/api/warehouse');
         const items = await res.json();
         const tbody = document.getElementById('stockTable');
         tbody.innerHTML = '';
         items.forEach(i => {
-            const row = `
-                <tr>
-                    <td>${i.name}</td>
-                    <td class="${i.quantity <= (i.min_quantity || 3) ? 'text-danger fw-bold' : ''}">${i.quantity}</td>
-                    <td>${i.min_quantity || 3}</td>
-                    <td>${i.weight || '-'}</td>
-                    <td>${i.size || '-'}</td>
-                    <td>${i.cost_price}</td>
-                    <td>${i.price_with_markup}</td>
-                    <td>
-                        <button class="btn btn-sm btn-danger del-stock" data-id="${i.id}">Удалить</button>
-                        <button class="btn btn-sm btn-warning edit-min" data-id="${i.id}" data-min="${i.min_quantity || 3}">Мин.</button>
-                    </td>
-                </tr>
-            `;
+            const row = `<tr>
+                <td>${escapeHtml(i.name)}</td><td>${i.quantity}</td><td>${i.weight||'-'}</td><td>${i.size||'-'}</td>
+                <td>${i.cost_price}</td><td>${i.price_with_markup}</td>
+                <td><button class="btn btn-sm btn-danger del-stock" data-id="${i.id}">Удалить</button></td>
+            </tr>`;
             tbody.insertAdjacentHTML('beforeend', row);
         });
         document.querySelectorAll('.del-stock').forEach(btn => btn.addEventListener('click', async (e) => {
             if(confirm('Удалить?')) await fetch(`/api/warehouse/${btn.dataset.id}`, {method: 'DELETE'});
             loadWarehouse();
         }));
-        document.querySelectorAll('.edit-min').forEach(btn => btn.addEventListener('click', async (e) => {
-            const id = btn.dataset.id;
-            const newMin = prompt('Введите минимальный остаток:', btn.dataset.min);
-            if(newMin !== null) {
-                await fetch(`/api/warehouse/${id}/set-min`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({min_quantity: parseInt(newMin)})
-                });
-                loadWarehouse();
-            }
-        }));
     }
-
-    // Загрузка заявок
-    async function loadRequests() {
-        const res = await fetch('/api/purchase-requests');
-        const requests = await res.json();
-        const tbody = document.getElementById('requestsTable');
-        tbody.innerHTML = '';
-        requests.forEach(r => {
-            let statusBadge = '';
-            if(r.status === 'pending') statusBadge = '<span class="badge bg-warning">Ожидает</span>';
-            else if(r.status === 'ordered') statusBadge = '<span class="badge bg-info">Заказано</span>';
-            else if(r.status === 'completed') statusBadge = '<span class="badge bg-success">Выполнено</span>';
-            else statusBadge = '<span class="badge bg-secondary">Отменено</span>';
-            let actions = '';
-            if(r.status === 'pending') {
-                actions += `<button class="btn btn-sm btn-info order-request" data-id="${r.id}">📦 Заказать</button> `;
-                actions += `<button class="btn btn-sm btn-danger del-request" data-id="${r.id}">🗑️</button> `;
-            }
-            if(r.status === 'ordered') {
-                actions += `<button class="btn btn-sm btn-success complete-request" data-id="${r.id}">✅ Получено</button> `;
-            }
-            const row = `
-                <tr>
-                    <td>${r.item_name}</td>
-                    <td>${r.requested_quantity}</td>
-                    <td>${statusBadge}</td>
-                    <td>${new Date(r.created_at).toLocaleDateString()}</td>
-                    <td>${actions}</td>
-                </tr>
-            `;
-            tbody.insertAdjacentHTML('beforeend', row);
-        });
-        document.querySelectorAll('.order-request').forEach(btn => btn.addEventListener('click', async () => {
-            await fetch(`/api/purchase-requests/${btn.dataset.id}/order`, {method: 'POST'});
-            loadRequests();
-        }));
-        document.querySelectorAll('.complete-request').forEach(btn => btn.addEventListener('click', async () => {
-            const notes = prompt('Комментарий (необязательно):');
-            await fetch(`/api/purchase-requests/${btn.dataset.id}/complete`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({notes: notes || ''})
-            });
-            loadRequests();
-            loadWarehouse();
-        }));
-        document.querySelectorAll('.del-request').forEach(btn => btn.addEventListener('click', async () => {
-            if(confirm('Удалить заявку?')) await fetch(`/api/purchase-requests/${btn.dataset.id}`, {method: 'DELETE'});
-            loadRequests();
-        }));
-    }
-
-    // Заполнение выпадающего списка товаров для заявки
-    async function fillItemSelect() {
-        const res = await fetch('/api/warehouse');
-        const items = await res.json();
-        const select = document.getElementById('requestItemId');
-        select.innerHTML = items.map(i => `<option value="${i.id}">${i.name} (остаток: ${i.quantity})</option>`).join('');
-    }
-
-    // Создание заявки
-    document.getElementById('createRequestBtn')?.addEventListener('click', async () => {
-        const item_id = document.getElementById('requestItemId').value;
-        const requested_quantity = parseInt(document.getElementById('requestQuantity').value);
-        const reason = document.getElementById('requestReason').value;
-        if(item_id && requested_quantity) {
-            await fetch('/api/purchase-requests', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({item_id, requested_quantity, reason})
-            });
-            bootstrap.Modal.getInstance(document.getElementById('newRequestModal')).hide();
-            loadRequests();
-        } else alert('Заполните поля');
-    });
-
-    // Проверка низких остатков вручную
-    document.getElementById('checkLowStockBtn')?.addEventListener('click', async () => {
-        const res = await fetch('/api/check-low-stock', {method: 'POST'});
-        const data = await res.json();
-        alert(data.message);
-        loadRequests();
-    });
-
-    // Добавление товара
+    function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
     document.getElementById('confirmAddStock')?.addEventListener('click', async () => {
         const name = document.getElementById('stockName').value;
-        const quantity = parseInt(document.getElementById('stockQty').value);
-        const min_quantity = parseInt(document.getElementById('stockMinQty').value) || 3;
+        const qty = parseInt(document.getElementById('stockQty').value);
         const weight = document.getElementById('stockWeight').value;
         const size = document.getElementById('stockSize').value;
-        const cost_price = parseFloat(document.getElementById('stockCost').value);
-        if(name && quantity && cost_price) {
-            await fetch('/api/warehouse', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name, quantity, weight, size, cost_price, min_quantity})
-            });
+        const cost = parseFloat(document.getElementById('stockCost').value);
+        if(name && qty && cost) {
+            await fetch('/api/warehouse', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, quantity: qty, weight, size, cost_price: cost})});
             bootstrap.Modal.getInstance(document.getElementById('addStockModal')).hide();
             loadWarehouse();
-        } else alert('Заполните обязательные поля');
+        } else alert('Заполните поля');
     });
-
-    // Инициализация
     loadWarehouse();
-    loadRequests();
-    fillItemSelect();
-    // Обновляем каждые 30 секунд
-    setInterval(() => { loadWarehouse(); loadRequests(); }, 30000);
 </script>
-
-<style>
-    .text-danger { font-weight: bold; }
-</style>
 {% endblock %}

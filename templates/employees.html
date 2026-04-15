@@ -1,28 +1,40 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card">
-    <div class="card-header">Сотрудники</div>
+    <div class="card-header">👥 Сотрудники</div>
     <div class="card-body">
-        <button class="btn btn-success mb-2" data-bs-toggle="modal" data-bs-target="#addEmpModal">➕ Добавить</button>
-        <table class="table table-striped">
-            <thead><tr><th>ФИО</th><th>Паспорт</th><th>Должность</th><th>ЗП</th><th></th></tr></thead>
-            <tbody id="empTable"></tbody>
-        </table>
+        <button class="btn btn-success mb-2" data-bs-toggle="modal" data-bs-target="#addEmpModal">➕ Добавить работника</button>
+        <div class="table-responsive-stack">
+            <table class="table table-striped">
+                <thead class="table-dark">
+                    <tr><th>ФИО</th><th>Паспорт / Реквизиты</th><th>Должность</th><th>ЗП (ставка/%)</th><th></th></tr>
+                </thead>
+                <tbody id="empTable"></tbody>
+            </table>
+        </div>
     </div>
 </div>
-<div class="modal fade" id="addEmpModal"><div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5>Новый сотрудник</h5></div>
-    <div class="modal-body">
-        <input type="text" id="empName" class="form-control mb-2" placeholder="ФИО">
-        <input type="text" id="empPassport" class="form-control mb-2" placeholder="Паспорт">
-        <input type="text" id="empDetails" class="form-control mb-2" placeholder="Реквизиты">
-        <select id="empPosition" class="form-select mb-2">
-            <option value="repair">Ремонт</option><option value="reception">Приёмка</option><option value="cleaning">Уборка</option>
-        </select>
-        <input type="number" id="empSalary" class="form-control mb-2" placeholder="Оклад / %">
+
+<div class="modal fade" id="addEmpModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5>Новый сотрудник</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <input type="text" id="empName" class="form-control mb-2" placeholder="ФИО">
+                <input type="text" id="empPassport" class="form-control mb-2" placeholder="Паспорт">
+                <input type="text" id="empDetails" class="form-control mb-2" placeholder="Реквизиты">
+                <select id="empPosition" class="form-select mb-2">
+                    <option value="repair">Ремонт (процент)</option>
+                    <option value="reception">Приёмка (оклад)</option>
+                    <option value="cleaning">Уборка (оклад)</option>
+                </select>
+                <input type="number" id="empSalary" class="form-control mb-2" placeholder="Оклад / %">
+            </div>
+            <div class="modal-footer"><button class="btn btn-success" id="saveEmp">Сохранить</button></div>
+        </div>
     </div>
-    <div class="modal-footer"><button class="btn btn-success" id="saveEmp">Сохранить</button></div>
-</div></div></div>
+</div>
+
 <script>
     async function loadEmployees() {
         const res = await fetch('/api/employees');
@@ -31,7 +43,8 @@
         tbody.innerHTML = '';
         emps.forEach(e => {
             const row = `<tr>
-                <td>${e.full_name}</td><td>${e.passport} / ${e.details}</td><td>${e.position}</td><td>${e.salary_value}</td>
+                <td>${escapeHtml(e.full_name)}</td><td>${escapeHtml(e.passport)} / ${escapeHtml(e.details)}</td>
+                <td>${e.position}</td><td>${e.salary_value}</td>
                 <td><button class="btn btn-sm btn-warning fire-emp" data-id="${e.id}">Уволить</button></td>
             </tr>`;
             tbody.insertAdjacentHTML('beforeend', row);
@@ -42,6 +55,7 @@
             loadEmployees();
         }));
     }
+    function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
     document.getElementById('saveEmp')?.addEventListener('click', async () => {
         const full_name = document.getElementById('empName').value;
         const passport = document.getElementById('empPassport').value;

@@ -3,7 +3,7 @@ from threading import Thread
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, send_file
 from flask_login import login_required, current_user
 from models import db, WarehouseItem, Employee, Order, FinanceTransaction, BlacklistClient, PriceItem, RecurringPayment, User, Notification, OrderLog, WarrantyCard
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import func
 from utils import check_deadlines_and_notify, send_order_ready_email_with_act, generate_act_pdf_buffer, log_order_change
 import json
@@ -84,6 +84,11 @@ def settings_page():
 def users_list():
     users = User.query.all()
     return render_template('users.html', users=users)
+
+@main_bp.route('/warranty')
+@login_required
+def warranty_page():
+    return render_template('warranty.html')
 
 # ------------------ API: Дашборд и уведомления ------------------
 @main_bp.route('/api/dashboard-stats')
@@ -207,33 +212,10 @@ def fire_employee(id):
     return jsonify({'status': 'ok'})
 
 # ------------------ API: Заказы ------------------
-@main_bp.route('/api/orders', methods=['GET'])
-@login_required
-def get_orders():
-    if current_user.role == 'master':
-        master_emp = Employee.query.filter_by(full_name=current_user.full_name).first()
-        if master_emp:
-            orders = Order.query.filter_by(responsible_employee_id=master_emp.id).all()
-        else:
-            orders = []
-    else:
-        orders = Order.query.all()
-    return jsonify([{
-        'id': o.id, 'customer_name': o.customer_name, 'phone': o.phone,
-        'device_model': o.device_model, 'main_problem': o.main_problem,
-        'detected_problem': o.detected_problem, 'price': o.price,
-        'deadline': o.deadline.isoformat(), 'start_time': o.start_time.isoformat(),
-        'completed_at': o.completed_at.isoformat() if o.completed_at else None,
-        'status': o.status, 'responsible_employee_id': o.responsible_employee_id,
-        'is_checked': o.is_checked, 'checked_by': o.checked_by,
-        'checked_at': o.checked_at.isoformat() if o.checked_at else None
-    } for o in orders])
-
 @main_bp.route('/api/orders', methods=['POST'])
 @role_required('admin', 'receiver', 'manager')
 def create_order():
     data = request.json
-    # Проверка чёрного списка
     blacklisted = BlacklistClient.query.filter(
         (BlacklistClient.full_name == data['customer_name']) | 
         (BlacklistClient.phone == data['phone'])
@@ -293,7 +275,6 @@ def update_order(id):
 @main_bp.route('/api/orders/<int:id>/complete', methods=['POST'])
 @role_required('admin', 'manager', 'master')
 def complete_order(id):
-    used_parts = request.json.get('used_parts', False)
     order = Order.query.get_or_404(id)
     if order.status == 'completed':
         return jsonify({'error': 'Already completed'}), 400
@@ -312,38 +293,12 @@ def complete_order(id):
     final_salary = round(base_salary * factor, 2)
     add_transaction('expense', 'ЗП мастеру (ремонт)', final_salary, f'Заказ {order.id}')
     db.session.commit()
-    WarrantyCard.create_for_order(order, 'work', f'Гарантия на выполненные работы по заказу #{order.id}', 14)
-    # Если были использованы запчасти (можно определить по наличию записи в чек-листе или по полю refused_with_parts, лучше добавить поле used_parts)
-    # Для простоты: если цена ремонта > 0 и не отказ, считаем что запчасти могли быть. Но логичнее добавить флаг.
-    # Добавим опционально: если в запросе при завершении передан флаг used_parts = True, то создаём гарантию на запчасти.
+    # Создание гарантийных талонов
     used_parts = request.json.get('used_parts', False)
+    WarrantyCard.create_for_order(order, 'work', f'Гарантия на выполненные работы по заказу #{order.id}', 14)
     if used_parts:
         WarrantyCard.create_for_order(order, 'part', f'Гарантия на установленные запчасти по заказу #{order.id}', 30)
     db.session.commit()
-
-
-    @main_bp.route('/api/warranty-cards', methods=['GET'])
-    @login_required
-    def get_warranty_cards():
-        cards = WarrantyCard.query.all()
-        return jsonify([{
-            'id': c.id,
-            'order_id': c.order_id,
-            'warranty_type': c.warranty_type,
-            'description': c.description,
-            'valid_until': c.valid_until.isoformat(),
-            'is_active': c.is_active,
-            'created_at': c.created_at.isoformat()
-        } for c in cards])
-
-    @main_bp.route('/api/warranty-cards/<int:id>/deactivate', methods=['POST'])
-    @role_required('admin', 'manager')
-    def deactivate_warranty(id):
-        card = WarrantyCard.query.get_or_404(id)
-        card.is_active = False
-        db.session.commit()
-        return jsonify({'status': 'ok'})
-    # Генерация PDF и отправка email
     pdf_buffer = generate_act_pdf_buffer(order)
     send_order_ready_email_with_act(order, pdf_buffer)
     log_order_change(
@@ -548,6 +503,73 @@ def daily_orders():
         'price': o.price, 'status': o.status
     } for o in orders])
 
+# ------------------ API: Гарантии ------------------
+@main_bp.route('/api/warranty-cards', methods=['GET'])
+@login_required
+def get_warranty_cards():
+    cards = WarrantyCard.query.all()
+    return jsonify([{
+        'id': c.id,
+        'order_id': c.order_id,
+        'warranty_type': c.warranty_type,
+        'description': c.description,
+        'valid_until': c.valid_until.isoformat(),
+        'is_active': c.is_active,
+        'created_at': c.created_at.isoformat()
+    } for c in cards])
+
+@main_bp.route('/api/warranty-cards/<int:id>/deactivate', methods=['POST'])
+@role_required('admin', 'manager')
+def deactivate_warranty(id):
+    card = WarrantyCard.query.get_or_404(id)
+    card.is_active = False
+    db.session.commit()
+    return jsonify({'status': 'ok'})
+
+# ------------------ API: Графики ------------------
+@main_bp.route('/api/chart-orders-status')
+@login_required
+def chart_orders_status():
+    in_progress = Order.query.filter_by(status='in_progress').count()
+    waiting = Order.query.filter_by(status='waiting_parts').count()
+    completed = Order.query.filter_by(status='completed').count()
+    return jsonify({
+        'labels': ['В работе', 'Ожидают запчасть', 'Завершены'],
+        'data': [in_progress, waiting, completed],
+        'colors': ['#ffc107', '#0dcaf0', '#198754']
+    })
+
+@main_bp.route('/api/chart-revenue-daily')
+@login_required
+def chart_revenue_daily():
+    today = datetime.utcnow().date()
+    dates = []
+    revenues = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        dates.append(day.strftime('%d.%m'))
+        start = datetime(day.year, day.month, day.day)
+        end = start + timedelta(days=1)
+        total = db.session.query(func.sum(FinanceTransaction.amount)).filter(
+            FinanceTransaction.type == 'income',
+            FinanceTransaction.date >= start,
+            FinanceTransaction.date < end
+        ).scalar() or 0
+        revenues.append(total)
+    return jsonify({'labels': dates, 'data': revenues})
+
+@main_bp.route('/api/chart-master-load')
+@login_required
+def chart_master_load():
+    masters = Employee.query.filter_by(position='repair', fired=False).all()
+    names = []
+    counts = []
+    for master in masters:
+        active = Order.query.filter_by(responsible_employee_id=master.id).filter(Order.status != 'completed').count()
+        names.append(master.full_name)
+        counts.append(active)
+    return jsonify({'labels': names, 'data': counts})
+
 # ------------------ Сброс демо-данных ------------------
 @main_bp.route('/api/reset-demo', methods=['POST'])
 @role_required('admin')
@@ -561,6 +583,7 @@ def reset_demo():
     RecurringPayment.query.delete()
     Notification.query.delete()
     OrderLog.query.delete()
+    WarrantyCard.query.delete()
     demo_warehouse = [
         WarehouseItem(name="Дисплей iPhone", quantity=5, weight="0.1кг", size="6.1", cost_price=1500),
         WarehouseItem(name="Аккумулятор", quantity=10, weight="50г", size="стандарт", cost_price=800)
@@ -588,7 +611,6 @@ def reset_demo():
         db.session.add(price)
     for rec in demo_recurring:
         db.session.add(rec)
-    from datetime import timedelta
     deadline = datetime.utcnow() + timedelta(days=2)
     demo_order = Order(
         customer_name="Алексей", phone="+79111234567", device_model="Xiaomi Note",
@@ -601,8 +623,3 @@ def reset_demo():
     add_transaction('income', 'Прием заказа', 2500, 'Заказ №1 (демо)')
     db.session.commit()
     return jsonify({'status': 'ok', 'message': 'Демо-данные восстановлены'})
-
-@main_bp.route('/warranty')
-@login_required
-def warranty_page():
-    return render_template('warranty.html')

@@ -4,8 +4,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 from threading import Thread
-from datetime import datetime
-from models import db, Order, Notification
+from datetime import datetime, timedelta
+from models import db, Order, Notification, WarrantyCard
 import io
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -14,7 +14,6 @@ from reportlab.lib import colors
 from reportlab.lib.units import mm
 
 def send_email_with_attachment_async(subject, recipient, html_body, pdf_buffer=None, filename="act.pdf"):
-    """Асинхронная отправка email с вложением PDF (эмуляция вывода в консоль)"""
     def send():
         print(f"=== EMAIL TO {recipient} ===")
         print(f"Subject: {subject}")
@@ -25,7 +24,6 @@ def send_email_with_attachment_async(subject, recipient, html_body, pdf_buffer=N
     Thread(target=send).start()
 
 def send_order_ready_email_with_act(order, pdf_buffer):
-    """Отправка клиенту уведомления о готовности с актом PDF"""
     if not order.phone or '@' not in order.phone:
         return
     subject = f"Ваш заказ #{order.id} готов в сервисном центре"
@@ -39,7 +37,6 @@ def send_order_ready_email_with_act(order, pdf_buffer):
     send_email_with_attachment_async(subject, order.phone, body, pdf_buffer, f"act_order_{order.id}.pdf")
 
 def generate_act_pdf_buffer(order):
-    """Генерирует PDF-акт выполненных работ и возвращает BytesIO буфер"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=20*mm, bottomMargin=20*mm)
     styles = getSampleStyleSheet()
@@ -96,6 +93,20 @@ def check_deadlines_and_notify():
                 message=f'Заказ {order.customer_name} ({order.device_model}) просрочен на {(now - order.deadline).days} дней',
                 link=f'/orders_page?highlight={order.id}'
             )
+    # Проверка истечения гарантий
+    threshold = now + timedelta(days=3)
+    expiring_cards = WarrantyCard.query.filter(
+        WarrantyCard.valid_until <= threshold,
+        WarrantyCard.valid_until > now,
+        WarrantyCard.is_active == True
+    ).all()
+    for card in expiring_cards:
+        Notification.create_notification(
+            role='admin,manager',
+            title=f'Истекает гарантия по заказу #{card.order_id}',
+            message=f'Гарантия {card.description} истекает {card.valid_until.strftime("%d.%m.%Y")}',
+            link='/warranty'
+        )
 
 def log_order_change(order_id, user_id, username, action, field_name=None, old_value=None, new_value=None, comment=None):
     from models import db, OrderLog
@@ -111,21 +122,3 @@ def log_order_change(order_id, user_id, username, action, field_name=None, old_v
     )
     db.session.add(log)
     db.session.commit()
-
-def check_warranty_expiry():
-    from models import WarrantyCard
-    now = datetime.utcnow()
-    # За 3 дня до истечения
-    threshold = now + timedelta(days=3)
-    expiring_cards = WarrantyCard.query.filter(
-        WarrantyCard.valid_until <= threshold,
-        WarrantyCard.valid_until > now,
-        WarrantyCard.is_active == True
-    ).all()
-    for card in expiring_cards:
-        Notification.create_notification(
-            role='admin,manager',
-            title=f'Истекает гарантия по заказу #{card.order_id}',
-            message=f'Гарантия {card.description} истекает {card.valid_until.strftime("%d.%m.%Y")}',
-            link=f'/warranty'
-        )

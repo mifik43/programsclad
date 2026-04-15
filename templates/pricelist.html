@@ -1,26 +1,34 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card">
-    <div class="card-header">Прайс-лист</div>
+    <div class="card-header">💲 Прайс-лист</div>
     <div class="card-body">
         {% if current_user.has_role('admin','accountant','manager') %}
         <button class="btn btn-info mb-2" data-bs-toggle="modal" data-bs-target="#addPriceModal">➕ Добавить позицию</button>
         {% endif %}
-        <table class="table table-sm">
-            <thead><tr><th>Название</th><th>Время исполнения</th><th>Цена</th><th></th></tr></thead>
-            <tbody id="priceTable"></tbody>
-        </table>
+        <div class="table-responsive-stack">
+            <table class="table table-sm">
+                <thead class="table-dark"><tr><th>Название</th><th>Время исполнения</th><th>Цена</th><th></th></tr></thead>
+                <tbody id="priceTable"></tbody>
+            </table>
+        </div>
     </div>
 </div>
-<div class="modal fade" id="addPriceModal"><div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5>Новая услуга</h5></div>
-    <div class="modal-body">
-        <input type="text" id="priceName" class="form-control mb-2" placeholder="Название">
-        <input type="text" id="priceTime" class="form-control mb-2" placeholder="Время исполнения">
-        <input type="number" id="priceAmount" class="form-control mb-2" placeholder="Цена">
+
+<div class="modal fade" id="addPriceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5>Новая услуга</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <input type="text" id="priceName" class="form-control mb-2" placeholder="Название">
+                <input type="text" id="priceTime" class="form-control mb-2" placeholder="Время исполнения">
+                <input type="number" id="priceAmount" class="form-control mb-2" placeholder="Цена">
+            </div>
+            <div class="modal-footer"><button class="btn btn-info" id="savePriceBtn">Сохранить</button></div>
+        </div>
     </div>
-    <div class="modal-footer"><button class="btn btn-info" id="savePriceBtn">Сохранить</button></div>
-</div></div></div>
+</div>
+
 <script>
     async function loadPricelist() {
         const res = await fetch('/api/pricelist');
@@ -28,17 +36,16 @@
         const tbody = document.getElementById('priceTable');
         tbody.innerHTML = '';
         items.forEach(i => {
-            const row = `<tr>
-                <td>${i.name}</td><td>${i.execution_time||'-'}</td><td>${i.price}₽</td>
-                <td>${ {% if current_user.has_role('admin','accountant','manager') %}true{% else %}false{% endif %} ? `<button class="btn btn-sm btn-danger del-price" data-id="${i.id}">Удалить</button>` : ''}</td>
-            </tr>`;
+            let delBtn = '';
+            if ({{ current_user.has_role('admin','accountant','manager')|tojson }}) {
+                delBtn = `<button class="btn btn-sm btn-danger del-price" data-id="${i.id}">Удалить</button>`;
+            }
+            const row = `<tr><td>${escapeHtml(i.name)}</td><td>${escapeHtml(i.execution_time||'-')}</td><td>${i.price}₽</td><td>${delBtn}</td></tr>`;
             tbody.insertAdjacentHTML('beforeend', row);
         });
-        document.querySelectorAll('.del-price').forEach(btn => btn.addEventListener('click', async () => {
-            if(confirm('Удалить?')) await fetch(`/api/pricelist/${btn.dataset.id}`, {method: 'DELETE'});
-            loadPricelist();
-        }));
+        document.querySelectorAll('.del-price').forEach(btn => btn.addEventListener('click', async () => { if(confirm('Удалить?')) await fetch(`/api/pricelist/${btn.dataset.id}`, {method: 'DELETE'}); loadPricelist(); }));
     }
+    function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
     document.getElementById('savePriceBtn')?.addEventListener('click', async () => {
         const name = document.getElementById('priceName').value;
         const execution_time = document.getElementById('priceTime').value;

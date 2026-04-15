@@ -4,14 +4,17 @@
     <div class="card-header">📜 Гарантийные талоны</div>
     <div class="card-body">
         <input type="text" id="searchWarranty" class="form-control mb-3" placeholder="Поиск по номеру заказа, описанию...">
-        <table class="table table-bordered">
-            <thead class="table-dark">
-                <tr><th>ID</th><th>Заказ #</th><th>Тип</th><th>Описание</th><th>Действителен до</th><th>Статус</th><th></th></tr>
-            </thead>
-            <tbody id="warrantyTable"></tbody>
-        </table>
+        <div class="table-responsive-stack">
+            <table class="table table-bordered">
+                <thead class="table-dark">
+                    <tr><th>ID</th><th>Заказ #</th><th>Тип</th><th>Описание</th><th>Действителен до</th><th>Статус</th><th></th></tr>
+                </thead>
+                <tbody id="warrantyTable"></tbody>
+            </table>
+        </div>
     </div>
 </div>
+
 <script>
     async function loadWarranty() {
         const res = await fetch('/api/warranty-cards');
@@ -28,7 +31,7 @@
                                 (isExpired ? '<span class="badge bg-danger">Истёк</span>' : '<span class="badge bg-success">Активен</span>');
             const row = `<tr>
                 <td>${c.id}</td><td>${c.order_id}</td><td>${c.warranty_type === 'work' ? '🔧 Работы' : '🔩 Запчасти'}</td>
-                <td>${c.description}</td><td>${validUntil.toLocaleDateString()}</td><td>${statusBadge}</td>
+                <td>${escapeHtml(c.description)}</td><td>${validUntil.toLocaleDateString()}</td><td>${statusBadge}</td>
                 <td>${c.is_active && !isExpired ? `<button class="btn btn-sm btn-danger deactivate-warranty" data-id="${c.id}">Аннулировать</button>` : ''}</td>
             </tr>`;
             tbody.insertAdjacentHTML('beforeend', row);
@@ -38,6 +41,7 @@
             loadWarranty();
         }));
     }
+    function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
     document.getElementById('searchWarranty')?.addEventListener('input', loadWarranty);
     loadWarranty();
 </script>

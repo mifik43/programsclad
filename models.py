@@ -1,7 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
 
 db = SQLAlchemy()
 
@@ -56,7 +56,7 @@ class Order(db.Model):
     checked_by = db.Column(db.String(100))
     checked_at = db.Column(db.DateTime)
     refused_with_parts = db.Column(db.Boolean, default=False)
-    checklist_data = db.Column(db.Text, nullable=True)  # JSON с чек-листом
+    checklist_data = db.Column(db.Text, nullable=True)
     responsible_employee = db.relationship('Employee', foreign_keys=[responsible_employee_id])
 
 class FinanceTransaction(db.Model):

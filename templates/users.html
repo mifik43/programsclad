@@ -1,17 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card">
-    <div class="card-header">Пользователи системы</div>
+    <div class="card-header">👤 Пользователи системы</div>
     <div class="card-body">
         <a href="{{ url_for('auth.register') }}" class="btn btn-success mb-2">➕ Создать пользователя</a>
-        <table class="table table-sm">
-            <thead><tr><th>Логин</th><th>ФИО</th><th>Роль</th></tr></thead>
-            <tbody>
-                {% for user in users %}
-                <tr><td>{{ user.username }}</td><td>{{ user.full_name or '' }}</td><td>{{ user.role }}</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-responsive-stack">
+            <table class="table table-sm">
+                <thead class="table-dark">
+                    <tr><th>Логин</th><th>ФИО</th><th>Роль</th></tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr><td>{{ user.username }}</td><td>{{ user.full_name or '' }}</td><td>{{ user.role }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% endblock %}
