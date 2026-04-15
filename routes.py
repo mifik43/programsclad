@@ -623,3 +623,264 @@ def reset_demo():
     add_transaction('income', 'Прием заказа', 2500, 'Заказ №1 (демо)')
     db.session.commit()
     return jsonify({'status': 'ok', 'message': 'Демо-данные восстановлены'})
+
+# ------------------ Экспорт в Excel ------------------
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+
+@main_bp.route('/api/export/orders')
+@login_required
+def export_orders_excel():
+    """Экспорт заказов в Excel с учётом текущих фильтров"""
+    # Получаем параметры фильтрации (как в /api/orders)
+    search = request.args.get('search', '')
+    status = request.args.get('status', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    query = Order.query
+    if search:
+        query = query.filter(
+            db.or_(
+                Order.customer_name.ilike(f'%{search}%'),
+                Order.phone.ilike(f'%{search}%'),
+                Order.device_model.ilike(f'%{search}%')
+            )
+        )
+    if status:
+        query = query.filter(Order.status == status)
+    if date_from:
+        query = query.filter(Order.start_time >= datetime.strptime(date_from, '%Y-%m-%d'))
+    if date_to:
+        query = query.filter(Order.start_time <= datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1))
+    
+    orders = query.order_by(Order.id.desc()).all()
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Заказы"
+    
+    # Заголовки
+    headers = ['ID', 'Клиент', 'Телефон', 'Модель', 'Проблема', 'Обнаружено', 'Цена', 'Дедлайн', 'Дата приёма', 'Дата завершения', 'Статус', 'Проверено']
+    ws.append(headers)
+    # Стиль заголовков
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+    
+    for o in orders:
+        ws.append([
+            o.id,
+            o.customer_name,
+            o.phone,
+            o.device_model,
+            o.main_problem,
+            o.detected_problem,
+            o.price,
+            o.deadline.strftime('%d.%m.%Y %H:%M') if o.deadline else '',
+            o.start_time.strftime('%d.%m.%Y %H:%M'),
+            o.completed_at.strftime('%d.%m.%Y %H:%M') if o.completed_at else '',
+            {'in_progress': 'В работе', 'waiting_parts': 'Ожидание запчасти', 'completed': 'Завершён'}.get(o.status, o.status),
+            'Да' if o.is_checked else 'Нет'
+        ])
+    
+    # Автоширина колонок
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 30)
+        ws.column_dimensions[column_letter].width = adjusted_width
+    
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(output, as_attachment=True, download_name=f'orders_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@main_bp.route('/api/export/finance')
+@role_required('admin', 'accountant', 'manager')
+def export_finance_excel():
+    """Экспорт финансовых транзакций"""
+    trans = FinanceTransaction.query.order_by(FinanceTransaction.date.desc()).all()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Финансы"
+    headers = ['ID', 'Дата', 'Тип', 'Категория', 'Сумма', 'Описание']
+    ws.append(headers)
+    for t in trans:
+        ws.append([
+            t.id,
+            t.date.strftime('%d.%m.%Y %H:%M'),
+            'Доход' if t.type == 'income' else 'Расход',
+            t.category,
+            t.amount,
+            t.description or ''
+        ])
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(output, as_attachment=True, download_name=f'finance_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@main_bp.route('/api/export/employees')
+@role_required('admin', 'manager')
+def export_employees_excel():
+    """Экспорт сотрудников"""
+    emps = Employee.query.filter_by(fired=False).all()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Сотрудники"
+    headers = ['ID', 'ФИО', 'Паспорт', 'Реквизиты', 'Должность', 'ЗП (ставка/%)']
+    ws.append(headers)
+    for e in emps:
+        position_map = {'repair': 'Ремонт', 'reception': 'Приёмка', 'cleaning': 'Уборка'}
+        ws.append([e.id, e.full_name, e.passport, e.details, position_map.get(e.position, e.position), e.salary_value])
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(output, as_attachment=True, download_name=f'employees_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@main_bp.route('/api/chart-orders-daily')
+@login_required
+def chart_orders_daily():
+    """Количество заказов по дням за последние 7 дней"""
+    today = datetime.utcnow().date()
+    dates = []
+    counts = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        dates.append(day.strftime('%d.%m'))
+        start = datetime(day.year, day.month, day.day)
+        end = start + timedelta(days=1)
+        count = Order.query.filter(Order.start_time >= start, Order.start_time < end).count()
+        counts.append(count)
+    return jsonify({'labels': dates, 'data': counts})
+
+@main_bp.route('/api/chart-top-masters')
+@login_required
+def chart_top_masters():
+    """Топ-5 мастеров по количеству завершённых заказов"""
+    masters = Employee.query.filter_by(position='repair', fired=False).all()
+    stats = []
+    for master in masters:
+        completed_count = Order.query.filter_by(responsible_employee_id=master.id, status='completed').count()
+        stats.append({'name': master.full_name, 'count': completed_count})
+    stats.sort(key=lambda x: x['count'], reverse=True)
+    top5 = stats[:5]
+    return jsonify({'labels': [s['name'] for s in top5], 'data': [s['count'] for s in top5]})
+
+@main_bp.route('/api/chart-popular-models')
+@login_required
+def chart_popular_models():
+    """Топ-5 моделей устройств по количеству заказов"""
+    from sqlalchemy import func
+    popular = db.session.query(Order.device_model, func.count(Order.id).label('cnt')).filter(Order.device_model != '').group_by(Order.device_model).order_by(func.count(Order.id).desc()).limit(5).all()
+    return jsonify({'labels': [p[0] for p in popular], 'data': [p[1] for p in popular]})
+
+@main_bp.route('/api/urgent-orders')
+@login_required
+def urgent_orders():
+    """Заказы с дедлайном сегодня или завтра (не завершённые)"""
+    now = datetime.utcnow()
+    today_end = datetime(now.year, now.month, now.day, 23, 59, 59)
+    tomorrow_end = today_end + timedelta(days=1)
+    orders = Order.query.filter(Order.deadline <= tomorrow_end, Order.deadline >= now, Order.status != 'completed').order_by(Order.deadline).limit(10).all()
+    return jsonify([{
+        'id': o.id, 'customer_name': o.customer_name, 'device_model': o.device_model,
+        'deadline': o.deadline.strftime('%d.%m.%Y %H:%M'), 'status': o.status
+    } for o in orders])
+
+# ------------------ Массовые операции с заказами ------------------
+@main_bp.route('/api/orders/bulk', methods=['POST'])
+@role_required('admin', 'manager')
+def bulk_order_action():
+    data = request.json
+    order_ids = data.get('order_ids', [])
+    action = data.get('action')  # 'status', 'assign_master', 'delete'
+    value = data.get('value')
+    
+    if not order_ids:
+        return jsonify({'error': 'Нет выбранных заказов'}), 400
+    
+    orders = Order.query.filter(Order.id.in_(order_ids)).all()
+    
+    if action == 'status':
+        if value not in ['in_progress', 'waiting_parts', 'completed']:
+            return jsonify({'error': 'Неверный статус'}), 400
+        for order in orders:
+            old_status = order.status
+            order.status = value
+            log_order_change(
+                order_id=order.id,
+                user_id=current_user.id,
+                username=current_user.username,
+                action='edit',
+                comment=f'Массовое изменение статуса: {old_status} → {value}'
+            )
+    elif action == 'assign_master':
+        master = Employee.query.get(value)
+        if not master or master.position != 'repair':
+            return jsonify({'error': 'Неверный мастер'}), 400
+        for order in orders:
+            old_master = order.responsible_employee_id
+            order.responsible_employee_id = master.id
+            log_order_change(
+                order_id=order.id,
+                user_id=current_user.id,
+                username=current_user.username,
+                action='edit',
+                comment=f'Массовое назначение мастера: #{old_master} → #{master.id}'
+            )
+    elif action == 'delete':
+        for order in orders:
+            log_order_change(
+                order_id=order.id,
+                user_id=current_user.id,
+                username=current_user.username,
+                action='edit',
+                comment='Массовое удаление заказа'
+            )
+            db.session.delete(order)
+    else:
+        return jsonify({'error': 'Неизвестное действие'}), 400
+    
+    db.session.commit()
+    return jsonify({'status': 'ok', 'updated': len(orders)})
+
+@main_bp.route('/api/export/orders-selected', methods=['POST'])
+@login_required
+def export_selected_orders_excel():
+    data = request.json
+    order_ids = data.get('order_ids', [])
+    if not order_ids:
+        return jsonify({'error': 'Нет выбранных заказов'}), 400
+    
+    orders = Order.query.filter(Order.id.in_(order_ids)).order_by(Order.id.desc()).all()
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Выбранные заказы"
+    headers = ['ID', 'Клиент', 'Телефон', 'Модель', 'Проблема', 'Обнаружено', 'Цена', 'Дедлайн', 'Дата приёма', 'Дата завершения', 'Статус', 'Проверено']
+    ws.append(headers)
+    for o in orders:
+        ws.append([
+            o.id, o.customer_name, o.phone, o.device_model, o.main_problem,
+            o.detected_problem, o.price,
+            o.deadline.strftime('%d.%m.%Y %H:%M') if o.deadline else '',
+            o.start_time.strftime('%d.%m.%Y %H:%M'),
+            o.completed_at.strftime('%d.%m.%Y %H:%M') if o.completed_at else '',
+            {'in_progress': 'В работе', 'waiting_parts': 'Ожидание запчасти', 'completed': 'Завершён'}.get(o.status, o.status),
+            'Да' if o.is_checked else 'Нет'
+        ])
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(output, as_attachment=True, download_name=f'selected_orders_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

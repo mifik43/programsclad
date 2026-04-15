@@ -4,6 +4,14 @@
     <div class="card-header">👥 Сотрудники</div>
     <div class="card-body">
         <button class="btn btn-success mb-2" data-bs-toggle="modal" data-bs-target="#addEmpModal">➕ Добавить работника</button>
+        <button class="btn btn-success mb-2" id="exportEmployeesBtn">
+    <i class="fas fa-file-excel"></i> Экспорт сотрудников (Excel)
+</button>
+<script>
+document.getElementById('exportEmployeesBtn')?.addEventListener('click', () => {
+    window.location.href = '/api/export/employees';
+});
+</script>
         <div class="table-responsive-stack">
             <table class="table table-striped">
                 <thead class="table-dark">

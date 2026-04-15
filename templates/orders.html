@@ -10,8 +10,6 @@
         {% endif %}
     </div>
     <div class="card-body">
-        <input type="text" id="searchOrders" class="form-control mb-3" placeholder="🔍 Поиск по заказчику, модели, телефону...">
-<div class="card-body">
         <!-- Фильтры -->
         <div class="row g-2 mb-3">
             <div class="col-md-3">
@@ -44,17 +42,63 @@
             </div>
         </div>
 
+        <!-- Панель массовых операций (только для админа/менеджера) -->
+        {% if current_user.has_role('admin','manager') %}
+        <div class="row g-2 mb-3 align-items-end" id="bulkActionsPanel" style="display: none;">
+            <div class="col-md-2">
+                <span class="fw-bold" id="selectedCount">0</span> заказов выбрано
+            </div>
+            <div class="col-md-3">
+                <select id="bulkStatusSelect" class="form-select">
+                    <option value="">Сменить статус</option>
+                    <option value="in_progress">В работе</option>
+                    <option value="waiting_parts">Ожидание запчасти</option>
+                    <option value="completed">Завершён</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select id="bulkMasterSelect" class="form-select">
+                    <option value="">Сменить мастера</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-danger" id="bulkDeleteBtn">🗑️ Удалить выбранные</button>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-success" id="bulkExportBtn">📎 Экспорт выбранных</button>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Кнопка экспорта всех с учётом фильтров -->
+        <div class="mb-3">
+            <button class="btn btn-success" id="exportAllBtn">
+                <i class="fas fa-file-excel"></i> Экспорт всех (с фильтрами)
+            </button>
+        </div>
+
         <!-- Таблица заказов -->
         <div class="table-responsive-stack">
             <table class="table table-bordered table-hover">
                 <thead class="table-dark">
                     <tr>
-                        <th>ID</th><th>Клиент / Телефон</th><th>Модель</th><th>Проблема</th>
-                        <th>Цена</th><th>Дедлайн</th><th>Статус</th><th>Проверка</th><th>Мастер</th><th>Действия</th>
+                        {% if current_user.has_role('admin','manager') %}
+                        <th><input type="checkbox" id="selectAllCheckbox"></th>
+                        {% endif %}
+                        <th>ID</th>
+                        <th>Клиент / Телефон</th>
+                        <th>Модель</th>
+                        <th>Проблема</th>
+                        <th>Цена</th>
+                        <th>Дедлайн</th>
+                        <th>Статус</th>
+                        <th>Проверка</th>
+                        <th>Мастер</th>
+                        <th>Действия</th>
                     </tr>
                 </thead>
                 <tbody id="ordersTable">
-                    <tr><td colspan="10" class="text-center">Загрузка...</td></tr>
+                    <tr><td colspan="12" class="text-center">Загрузка...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -66,7 +110,9 @@
     </div>
 </div>
 
-<!-- Модальное окно: Новый заказ -->
+<!-- ====================== МОДАЛЬНЫЕ ОКНА ====================== -->
+
+<!-- 1. Новый заказ -->
 <div class="modal fade" id="newOrderModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -113,7 +159,7 @@
     </div>
 </div>
 
-<!-- Модальное окно: Редактирование заказа -->
+<!-- 2. Редактирование заказа -->
 <div class="modal fade" id="editOrderModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -164,7 +210,7 @@
     </div>
 </div>
 
-<!-- Модальное окно: Проверка техники с чек-листом -->
+<!-- 3. Проверка техники с чек-листом -->
 <div class="modal fade" id="checkModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -176,7 +222,6 @@
                 <input type="hidden" id="checkOrderId">
                 <label>ФИО проверяющего сотрудника:</label>
                 <input type="text" id="checkerName" class="form-control mb-3" placeholder="Введите ФИО" required>
-                
                 <label>Чек-лист проверки:</label>
                 <div class="border p-2 mb-3">
                     <div class="form-check">
@@ -196,7 +241,6 @@
                         <label class="form-check-label">Работоспособность после ремонта</label>
                     </div>
                 </div>
-                
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="checkRefusedWithParts">
                     <label class="form-check-label">Клиент отказался от ремонта, но запчасть заказана (оплата обязательна)</label>
@@ -210,7 +254,7 @@
     </div>
 </div>
 
-<!-- Модальное окно: История изменений -->
+<!-- 4. История изменений -->
 <div class="modal fade" id="historyModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -226,17 +270,20 @@
 </div>
 
 <script>
+    // ---------- Глобальные переменные ----------
     let currentPage = 1;
     let perPage = 20;
     let totalPages = 1;
+    let selectedOrders = new Set();  // храним ID выбранных заказов
 
+    // ---------- Загрузка заказов с пагинацией и фильтрами ----------
     async function loadOrders() {
         const search = document.getElementById('searchInput').value;
         const status = document.getElementById('statusFilter').value;
         const dateFrom = document.getElementById('dateFrom').value;
         const dateTo = document.getElementById('dateTo').value;
         perPage = parseInt(document.getElementById('perPageSelect').value);
-        
+
         const params = new URLSearchParams({
             page: currentPage,
             per_page: perPage,
@@ -245,20 +292,21 @@
             date_from: dateFrom,
             date_to: dateTo
         });
-        
+
         const res = await fetch(`/api/orders?${params.toString()}`);
         const data = await res.json();
-        
+
         totalPages = data.pages;
         renderOrdersTable(data.items);
         renderPagination();
+        updateBulkPanelVisibility();
     }
-    
+
+    // ---------- Отрисовка таблицы ----------
     function renderOrdersTable(orders) {
         const tbody = document.getElementById('ordersTable');
-        tbody.innerHTML = '';
-        if(!orders.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center">Нет заказов</td></tr>';
+        if (!orders.length) {
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center">Нет заказов</td></tr>';
             return;
         }
         tbody.innerHTML = '';
@@ -267,7 +315,7 @@
             const now = new Date();
             const diff = deadline - now;
             let timerHtml = '';
-            if(o.status === 'completed') {
+            if (o.status === 'completed') {
                 timerHtml = '<span class="badge bg-success">Завершён</span>';
             } else {
                 const days = Math.floor(diff / 86400000);
@@ -275,11 +323,11 @@
                 const cls = diff < 0 ? 'text-danger fw-bold' : '';
                 timerHtml = `<span class="${cls}">${diff < 0 ? 'Просрочен' : days+'д '+hours+'ч'}</span>`;
             }
-            const statusBadge = o.status === 'in_progress' ? '<span class="badge bg-warning text-dark">В работе</span>' : 
-                                (o.status === 'waiting_parts' ? '<span class="badge bg-info">Ждём запчасть</span>' : 
+            const statusBadge = o.status === 'in_progress' ? '<span class="badge bg-warning text-dark">В работе</span>' :
+                                (o.status === 'waiting_parts' ? '<span class="badge bg-info">Ждём запчасть</span>' :
                                 '<span class="badge bg-success">Завершён</span>');
-            const checkedBadge = o.is_checked ? '<span class="badge bg-success">✓ Проверено</span>' : 
-                                (o.status === 'completed' ? '<span class="badge bg-danger">⚠️ Не проверено</span>' : 
+            const checkedBadge = o.is_checked ? '<span class="badge bg-success">✓ Проверено</span>' :
+                                (o.status === 'completed' ? '<span class="badge bg-danger">⚠️ Не проверено</span>' :
                                 '<span class="badge bg-secondary">—</span>');
             let actions = '';
             if ({{ current_user.has_role('admin','manager','receiver')|tojson }}) {
@@ -295,51 +343,54 @@
                 actions += `<a href="/api/orders/${o.id}/pdf-act" class="btn btn-sm btn-danger me-1" target="_blank" title="Акт выполненных работ"><i class="fas fa-file-pdf"></i></a> `;
             }
             actions += `<button class="btn btn-sm btn-secondary history-order" data-id="${o.id}" title="История изменений"><i class="fas fa-history"></i></button>`;
-            
-            const row = `
-                <tr>
-                    <td>${o.id}</td>
-                    <td>${escapeHtml(o.customer_name)}<br><small class="text-muted">${escapeHtml(o.phone)}</small></td>
-                    <td>${escapeHtml(o.device_model)}</td>
-                    <td>${escapeHtml(o.main_problem?.substring(0,50) || '')}</td>
-                    <td>${o.price} ₽</td>
-                    <td>${timerHtml}</td>
-                    <td>${statusBadge}</td>
-                    <td>${checkedBadge}</td>
-                    <td>${o.responsible_employee_id || '-'}</td>
-                    <td>${actions}</td>
-                </tr>
-            `;
+
+            const isChecked = selectedOrders.has(o.id);
+            let checkboxCell = '';
+            if ({{ current_user.has_role('admin','manager')|tojson }}) {
+                checkboxCell = `<td><input type="checkbox" class="order-checkbox" data-id="${o.id}" ${isChecked ? 'checked' : ''}></td>`;
+            }
+            const row = `<tr>
+                ${checkboxCell}
+                <td>${o.id}</td>
+                <td>${escapeHtml(o.customer_name)}<br><small class="text-muted">${escapeHtml(o.phone)}</small></td>
+                <td>${escapeHtml(o.device_model)}</td>
+                <td>${escapeHtml(o.main_problem?.substring(0,50) || '')}</td>
+                <td>${o.price} ₽</td>
+                <td>${timerHtml}</td>
+                <td>${statusBadge}</td>
+                <td>${checkedBadge}</td>
+                <td>${o.responsible_employee_id || '-'}</td>
+                <td>${actions}</td>
+            </tr>`;
             tbody.insertAdjacentHTML('beforeend', row);
         });
         attachOrderButtons();
+        attachCheckboxEvents();
+        updateSelectedCount();
     }
 
-    function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
-        function renderPagination() {
+    // ---------- Пагинация ----------
+    function renderPagination() {
         const paginationList = document.getElementById('paginationList');
         paginationList.innerHTML = '';
-        if(totalPages <= 1) return;
-        
-        // Предыдущая
-        if(currentPage > 1) {
+        if (totalPages <= 1) return;
+
+        if (currentPage > 1) {
             paginationList.innerHTML += `<li class="page-item"><a class="page-link" href="#" data-page="${currentPage-1}">«</a></li>`;
         }
-        // Номера страниц
         let start = Math.max(1, currentPage - 2);
         let end = Math.min(totalPages, currentPage + 2);
-        for(let i = start; i <= end; i++) {
+        for (let i = start; i <= end; i++) {
             paginationList.innerHTML += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
         }
-        // Следующая
-        if(currentPage < totalPages) {
+        if (currentPage < totalPages) {
             paginationList.innerHTML += `<li class="page-item"><a class="page-link" href="#" data-page="${currentPage+1}">»</a></li>`;
         }
         document.querySelectorAll('#paginationList .page-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 const newPage = parseInt(link.dataset.page);
-                if(!isNaN(newPage)) {
+                if (!isNaN(newPage)) {
                     currentPage = newPage;
                     loadOrders();
                 }
@@ -347,6 +398,144 @@
         });
     }
 
+    // ---------- Чекбоксы и массовые операции ----------
+    function attachCheckboxEvents() {
+        document.querySelectorAll('.order-checkbox').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                const id = parseInt(e.target.dataset.id);
+                if (e.target.checked) selectedOrders.add(id);
+                else selectedOrders.delete(id);
+                updateSelectedCount();
+                updateSelectAllCheckbox();
+            });
+        });
+        const selectAll = document.getElementById('selectAllCheckbox');
+        if (selectAll) {
+            selectAll.addEventListener('change', (e) => {
+                const checkboxes = document.querySelectorAll('.order-checkbox');
+                if (e.target.checked) {
+                    checkboxes.forEach(cb => {
+                        cb.checked = true;
+                        selectedOrders.add(parseInt(cb.dataset.id));
+                    });
+                } else {
+                    checkboxes.forEach(cb => {
+                        cb.checked = false;
+                        selectedOrders.delete(parseInt(cb.dataset.id));
+                    });
+                }
+                updateSelectedCount();
+            });
+        }
+    }
+
+    function updateSelectedCount() {
+        const count = selectedOrders.size;
+        document.getElementById('selectedCount').innerText = count;
+        updateBulkPanelVisibility();
+    }
+
+    function updateSelectAllCheckbox() {
+        const allCbs = document.querySelectorAll('.order-checkbox');
+        const checkedCbs = document.querySelectorAll('.order-checkbox:checked');
+        const selectAll = document.getElementById('selectAllCheckbox');
+        if (selectAll) {
+            selectAll.checked = allCbs.length > 0 && allCbs.length === checkedCbs.length;
+        }
+    }
+
+    function updateBulkPanelVisibility() {
+        const panel = document.getElementById('bulkActionsPanel');
+        if (panel) {
+            panel.style.display = selectedOrders.size > 0 ? 'flex' : 'none';
+        }
+    }
+
+    async function bulkAction(action, value = null) {
+        if (selectedOrders.size === 0) {
+            alert('Нет выбранных заказов');
+            return;
+        }
+        if (action === 'delete' && !confirm(`Удалить ${selectedOrders.size} заказ(ов)?`)) return;
+        const res = await fetch('/api/orders/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                order_ids: Array.from(selectedOrders),
+                action: action,
+                value: value
+            })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            alert(`Обновлено ${data.updated} заказов`);
+            selectedOrders.clear();
+            loadOrders();
+        } else {
+            alert('Ошибка: ' + (data.error || 'неизвестная'));
+        }
+    }
+
+    async function exportSelected() {
+        if (selectedOrders.size === 0) {
+            alert('Нет выбранных заказов');
+            return;
+        }
+        const res = await fetch('/api/export/orders-selected', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_ids: Array.from(selectedOrders) })
+        });
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `selected_orders_${new Date().toISOString().slice(0,19)}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    }
+
+    // ---------- Экспорт всех с фильтрами ----------
+    document.getElementById('exportAllBtn')?.addEventListener('click', () => {
+        const search = document.getElementById('searchInput').value;
+        const status = document.getElementById('statusFilter').value;
+        const dateFrom = document.getElementById('dateFrom').value;
+        const dateTo = document.getElementById('dateTo').value;
+        const params = new URLSearchParams({ search, status, date_from: dateFrom, date_to: dateTo });
+        window.location.href = `/api/export/orders?${params.toString()}`;
+    });
+
+    // ---------- Загрузка списка мастеров для выпадающих списков ----------
+    async function loadMastersForSelect() {
+        const res = await fetch('/api/employees');
+        const emps = await res.json();
+        const masters = emps.filter(e => e.position === 'repair');
+        const orderMasterSelect = document.getElementById('orderMaster');
+        if (orderMasterSelect) {
+            orderMasterSelect.innerHTML = '<option value="">Выберите мастера</option>';
+            masters.forEach(m => {
+                orderMasterSelect.innerHTML += `<option value="${m.id}">${escapeHtml(m.full_name)}</option>`;
+            });
+        }
+        const editMasterSelect = document.getElementById('editMaster');
+        if (editMasterSelect) {
+            editMasterSelect.innerHTML = '<option value="">Выберите мастера</option>';
+            masters.forEach(m => {
+                editMasterSelect.innerHTML += `<option value="${m.id}">${escapeHtml(m.full_name)}</option>`;
+            });
+        }
+        const bulkMasterSelect = document.getElementById('bulkMasterSelect');
+        if (bulkMasterSelect) {
+            bulkMasterSelect.innerHTML = '<option value="">Сменить мастера</option>';
+            masters.forEach(m => {
+                bulkMasterSelect.innerHTML += `<option value="${m.id}">${escapeHtml(m.full_name)}</option>`;
+            });
+        }
+    }
+
+    // ---------- Функции для кнопок в таблице ----------
     function attachOrderButtons() {
         document.querySelectorAll('.edit-order').forEach(btn => btn.addEventListener('click', () => openEditModal(btn.dataset.id)));
         document.querySelectorAll('.check-order').forEach(btn => btn.addEventListener('click', () => openCheckModal(btn.dataset.id)));
@@ -358,7 +547,7 @@
         const res = await fetch('/api/orders');
         const orders = await res.json();
         const order = orders.find(o => o.id == orderId);
-        if(!order) return;
+        if (!order) return;
         document.getElementById('editOrderId').value = order.id;
         document.getElementById('editOrderIdSpan').innerText = order.id;
         document.getElementById('editCustomer').value = order.customer_name;
@@ -368,22 +557,14 @@
         document.getElementById('editProblem').value = order.main_problem;
         document.getElementById('editDetected').value = order.detected_problem;
         document.getElementById('editPrice').value = order.price;
-        if(order.deadline) document.getElementById('editDeadline').value = order.deadline.slice(0,16);
+        if (order.deadline) document.getElementById('editDeadline').value = order.deadline.slice(0, 16);
         document.getElementById('editStatus').value = order.status;
-        await loadMasters('editMaster', order.responsible_employee_id);
+        // Установить выбранного мастера
+        const masterSelect = document.getElementById('editMaster');
+        if (masterSelect) masterSelect.value = order.responsible_employee_id;
         new bootstrap.Modal(document.getElementById('editOrderModal')).show();
     }
 
-    async function loadMasters(selectId, selectedId = null) {
-        const res = await fetch('/api/employees');
-        const emps = await res.json();
-        const masters = emps.filter(e => e.position === 'repair');
-        const select = document.getElementById(selectId);
-        select.innerHTML = '<option value="">Выберите мастера</option>' + 
-            masters.map(m => `<option value="${m.id}" ${selectedId == m.id ? 'selected' : ''}>${escapeHtml(m.full_name)}</option>`).join('');
-    }
-    document.getElementById('applyFiltersBtn').addEventListener('click', () => {
-        currentPage = 1;
     document.getElementById('saveOrderEdit')?.addEventListener('click', async () => {
         const id = document.getElementById('editOrderId').value;
         const payload = {
@@ -397,22 +578,24 @@
             status: document.getElementById('editStatus').value,
             responsible_employee_id: parseInt(document.getElementById('editMaster').value)
         };
-        await fetch(`/api/orders/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        await fetch(`/api/orders/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
         bootstrap.Modal.getInstance(document.getElementById('editOrderModal')).hide();
         loadOrders();
     });
-    
-    document.getElementById('perPageSelect').addEventListener('change', () => {
-        currentPage = 1;
+
     async function completeOrder(orderId) {
         const masterPercent = prompt("Процент мастеру от стоимости (по умолчанию 67):", 67);
         const bonusDays = prompt("Бонусные дни (по умолчанию 3):", 3);
         const bonusPercent = prompt("Бонус/штраф % (по умолчанию 10):", 10);
         const usedParts = confirm("Использовались ли запчасти? (создать гарантию на 30 дней)");
-        if(!masterPercent || !bonusDays || !bonusPercent) return;
+        if (!masterPercent || !bonusDays || !bonusPercent) return;
         const res = await fetch(`/api/orders/${orderId}/complete`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 master_percent: parseFloat(masterPercent),
                 bonus_days: parseInt(bonusDays),
@@ -421,11 +604,13 @@
             })
         });
         const data = await res.json();
-        if(data.status === 'ok') {
+        if (data.status === 'ok') {
             alert(`Ремонт завершён! Зарплата мастера: ${data.final_salary} руб.`);
             loadOrders();
-            if(typeof loadBalance === 'function') loadBalance();
-        } else alert('Ошибка: ' + (data.error || 'неизвестная'));
+            if (typeof loadBalance === 'function') loadBalance();
+        } else {
+            alert('Ошибка: ' + (data.error || 'неизвестная'));
+        }
     }
 
     function openCheckModal(orderId) {
@@ -438,10 +623,14 @@
         document.getElementById('checkRefusedWithParts').checked = false;
         new bootstrap.Modal(document.getElementById('checkModal')).show();
     }
+
     document.getElementById('confirmCheck')?.addEventListener('click', async () => {
         const id = document.getElementById('checkOrderId').value;
         const checker = document.getElementById('checkerName').value.trim();
-        if(!checker) { alert('Укажите ФИО проверяющего сотрудника'); return; }
+        if (!checker) {
+            alert('Укажите ФИО проверяющего сотрудника');
+            return;
+        }
         const checklist = {
             exterior: document.getElementById('check_ext').checked,
             functionality: document.getElementById('check_func').checked,
@@ -451,12 +640,12 @@
         const refused = document.getElementById('checkRefusedWithParts').checked;
         await fetch(`/api/orders/${id}/mark-checked`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({checked_by: checker, refused_with_parts: refused, checklist: checklist})
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ checked_by: checker, refused_with_parts: refused, checklist: checklist })
         });
         bootstrap.Modal.getInstance(document.getElementById('checkModal')).hide();
         loadOrders();
-        if(refused) alert('Клиент отказался от ремонта, но запчасть заказана. Не забудьте выставить счёт.');
+        if (refused) alert('Клиент отказался от ремонта, но запчасть заказана. Не забудьте выставить счёт.');
     });
 
     async function showOrderHistory(orderId) {
@@ -465,13 +654,14 @@
         logsDiv.innerHTML = '<div class="text-center">Загрузка...</div>';
         const res = await fetch(`/api/orders/${orderId}/logs`);
         const logs = await res.json();
-        if(logs.length === 0) { logsDiv.innerHTML = '<p class="text-muted">История пуста</p>'; }
-        else {
+        if (logs.length === 0) {
+            logsDiv.innerHTML = '<p class="text-muted">История пуста</p>';
+        } else {
             let html = '<table class="table table-sm table-bordered"><thead><tr><th>Дата</th><th>Пользователь</th><th>Действие</th><th>Комментарий</th></tr></thead><tbody>';
             logs.forEach(l => {
                 const date = new Date(l.created_at).toLocaleString();
                 let actionText = '';
-                switch(l.action) {
+                switch (l.action) {
                     case 'create': actionText = '➕ Создание'; break;
                     case 'edit': actionText = '✏️ Редактирование'; break;
                     case 'complete': actionText = '✅ Завершение'; break;
@@ -487,13 +677,14 @@
         new bootstrap.Modal(document.getElementById('historyModal')).show();
     }
 
+    // ---------- Создание нового заказа ----------
     document.getElementById('confirmOrder')?.addEventListener('click', async () => {
         const cust = document.getElementById('orderCustomer').value.trim();
         const phone = document.getElementById('orderPhone').value.trim();
         const price = parseFloat(document.getElementById('orderPrice').value);
         const deadline = document.getElementById('orderDeadline').value;
         const masterId = parseInt(document.getElementById('orderMaster').value);
-        if(!cust || !phone || !price || !deadline || !masterId) {
+        if (!cust || !phone || !price || !deadline || !masterId) {
             alert('Заполните обязательные поля: ФИО, телефон, цена, дедлайн, мастер');
             return;
         }
@@ -509,33 +700,65 @@
             responsible_employee_id: masterId,
             waiting_parts: document.getElementById('orderWaitingParts').checked
         };
-        const res = await fetch('/api/orders', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        const res = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
         const data = await res.json();
-        if(data.status === 'ok') {
+        if (data.status === 'ok') {
             alert(`Заказ #${data.id} успешно создан`);
             bootstrap.Modal.getInstance(document.getElementById('newOrderModal')).hide();
-            document.getElementById('newOrderModal').querySelectorAll('input, textarea, select').forEach(el => { if(el.type !== 'checkbox') el.value = ''; else el.checked = false; });
+            document.getElementById('newOrderModal').querySelectorAll('input, textarea, select').forEach(el => {
+                if (el.type !== 'checkbox') el.value = '';
+                else el.checked = false;
+            });
             loadOrders();
-            if(typeof loadBalance === 'function') loadBalance();
-        } else alert('Ошибка: ' + (data.error || 'при создании заказа'));
+            if (typeof loadBalance === 'function') loadBalance();
+        } else {
+            alert('Ошибка: ' + (data.error || 'при создании заказа'));
+        }
     });
 
-    async function loadMastersForSelect() {
-        const res = await fetch('/api/employees');
-        const emps = await res.json();
-        const masters = emps.filter(e => e.position === 'repair');
-        const select = document.getElementById('orderMaster');
-        select.innerHTML = '<option value="">Выберите мастера</option>';
-        masters.forEach(m => { select.innerHTML += `<option value="${m.id}">${escapeHtml(m.full_name)}</option>`; });
+    // ---------- Применение фильтров ----------
+    document.getElementById('applyFiltersBtn')?.addEventListener('click', () => {
+        currentPage = 1;
+        loadOrders();
+    });
+    document.getElementById('perPageSelect')?.addEventListener('change', () => {
+        currentPage = 1;
+        loadOrders();
+    });
+    document.getElementById('bulkStatusSelect')?.addEventListener('change', (e) => {
+        if (e.target.value) bulkAction('status', e.target.value);
+        e.target.value = '';
+    });
+    document.getElementById('bulkMasterSelect')?.addEventListener('change', (e) => {
+        if (e.target.value) bulkAction('assign_master', parseInt(e.target.value));
+        e.target.value = '';
+    });
+    document.getElementById('bulkDeleteBtn')?.addEventListener('click', () => bulkAction('delete'));
+    document.getElementById('bulkExportBtn')?.addEventListener('click', exportSelected);
+
+    // ---------- Вспомогательная функция ----------
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
     }
 
-    document.getElementById('searchOrders')?.addEventListener('input', loadOrders);
+    // ---------- Инициализация ----------
     loadMastersForSelect();
     loadOrders();
-    setInterval(() => { loadOrders(); }, 60000);
-    setInterval(() => { if(document.activeElement !== document.getElementById('searchInput')) loadOrders(); }, 60000);
-    
-    // Вспомогательная функция escapeHtml
-    function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+    setInterval(() => {
+        // Обновляем таблицу каждые 60 секунд, если не в фокусе поиска
+        if (document.activeElement !== document.getElementById('searchInput')) {
+            loadOrders();
+        }
+    }, 60000);
 </script>
 {% endblock %}

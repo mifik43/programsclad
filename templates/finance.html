@@ -8,6 +8,14 @@
             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#transModal">💰 Операция</button>
             <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#recurringModal">📅 Добавить платёж</button>
             <button class="btn btn-sm btn-success" id="applyRecurringBtn">💸 Начислить ежемесячные</button>
+            <button class="btn btn-success" id="exportFinanceBtn">
+    <i class="fas fa-file-excel"></i> Экспорт финансов (Excel)
+</button>
+<script>
+document.getElementById('exportFinanceBtn')?.addEventListener('click', () => {
+    window.location.href = '/api/export/finance';
+});
+</script>
         </div>
         <h6>📅 Регулярные ежемесячные платежи</h6>
         <div class="table-responsive-stack">
@@ -49,6 +57,7 @@
 </div></div></div>
 
 <script>
+    
     async function loadBalance() { const res = await fetch('/api/finance/balance'); const data = await res.json(); document.getElementById('balanceSpan').innerText = data.balance; }
     async function loadTransactions() {
         const res = await fetch('/api/finance/transactions');
@@ -100,5 +109,6 @@
         loadTransactions(); loadBalance();
     });
     loadBalance(); loadTransactions(); loadRecurring();
+    
 </script>
 {% endblock %}

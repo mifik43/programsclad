@@ -20,27 +20,41 @@
 
 <!-- Графики -->
 <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-6 mb-3">
         <div class="card h-100">
             <div class="card-header">📊 Заказы по статусам</div>
-            <div class="card-body">
-                <canvas id="statusChart" height="200"></canvas>
-            </div>
+            <div class="card-body"><canvas id="statusChart" height="200"></canvas></div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-6 mb-3">
         <div class="card h-100">
-            <div class="card-header">📈 Выручка за 7 дней</div>
-            <div class="card-body">
-                <canvas id="revenueChart" height="200"></canvas>
-            </div>
+            <div class="card-header">📈 Динамика заказов (7 дней)</div>
+            <div class="card-body"><canvas id="dailyOrdersChart" height="200"></canvas></div>
         </div>
     </div>
-    <div class="col-md-4">
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
         <div class="card h-100">
-            <div class="card-header">👨‍🔧 Загруженность мастеров</div>
+            <div class="card-header">👨‍🔧 Топ-5 мастеров по завершённым заказам</div>
+            <div class="card-body"><canvas id="topMastersChart" height="200"></canvas></div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header">📱 Популярные модели устройств</div>
+            <div class="card-body"><canvas id="popularModelsChart" height="200"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">⚠️ Срочные заказы (дедлайн сегодня/завтра)</div>
             <div class="card-body">
-                <canvas id="masterChart" height="200"></canvas>
+                <div id="urgentOrdersList" class="list-group">Загрузка...</div>
             </div>
         </div>
     </div>
@@ -230,5 +244,93 @@
         loadMasterChart();
         loadNotifications();
     }, 60000);
+    let dailyOrdersChart, topMastersChart, popularModelsChart;
+
+async function loadDailyOrdersChart() {
+    const res = await fetch('/api/chart-orders-daily');
+    const data = await res.json();
+    if(dailyOrdersChart) dailyOrdersChart.destroy();
+    const ctx = document.getElementById('dailyOrdersChart').getContext('2d');
+    dailyOrdersChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Количество заказов',
+                data: data.data,
+                borderColor: '#0dcaf0',
+                backgroundColor: 'rgba(13,202,240,0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true, stepSize: 1 } } }
+    });
+}
+
+async function loadTopMastersChart() {
+    const res = await fetch('/api/chart-top-masters');
+    const data = await res.json();
+    if(topMastersChart) topMastersChart.destroy();
+    const ctx = document.getElementById('topMastersChart').getContext('2d');
+    topMastersChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Завершённых заказов',
+                data: data.data,
+                backgroundColor: '#198754',
+                borderRadius: 5
+            }]
+        },
+        options: { responsive: true, indexAxis: 'y', scales: { x: { beginAtZero: true, stepSize: 1 } } }
+    });
+}
+
+async function loadPopularModelsChart() {
+    const res = await fetch('/api/chart-popular-models');
+    const data = await res.json();
+    if(popularModelsChart) popularModelsChart.destroy();
+    const ctx = document.getElementById('popularModelsChart').getContext('2d');
+    popularModelsChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                data: data.data,
+                backgroundColor: ['#0d6efd', '#fd7e14', '#20c997', '#dc3545', '#ffc107']
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+}
+
+async function loadUrgentOrders() {
+    const res = await fetch('/api/urgent-orders');
+    const orders = await res.json();
+    const container = document.getElementById('urgentOrdersList');
+    if(orders.length === 0) {
+        container.innerHTML = '<div class="list-group-item text-muted">Нет срочных заказов</div>';
+        return;
+    }
+    let html = '';
+    orders.forEach(o => {
+        html += `<a href="/orders_page" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                    <div><strong>Заказ #${o.id}</strong> — ${o.customer_name} (${o.device_model})</div>
+                    <span class="badge bg-danger rounded-pill">${o.deadline}</span>
+                 </a>`;
+    });
+    container.innerHTML = html;
+}
+
+// Добавить вызовы в функцию инициализации (которая уже есть)
+// В существующей функции, где вызываются loadStatusChart(), loadRevenueChart(), loadMasterChart(), добавьте:
+loadDailyOrdersChart();
+loadTopMastersChart();
+loadPopularModelsChart();
+loadUrgentOrders();
+
+// Добавить в setInterval эти функции (или обновлять реже)
 </script>
 {% endblock %}
