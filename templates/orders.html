@@ -42,7 +42,7 @@
             </div>
         </div>
 
-        <!-- Панель массовых операций (только для админа/менеджера) -->
+          <!-- Панель массовых операций (только для админа/менеджера) -->
         {% if current_user.has_role('admin','manager') %}
         <div class="row g-2 mb-3 align-items-end" id="bulkActionsPanel" style="display: none;">
             <div class="col-md-2">
@@ -109,7 +109,6 @@
         </nav>
     </div>
 </div>
-
 <!-- ====================== МОДАЛЬНЫЕ ОКНА ====================== -->
 
 <!-- 1. Новый заказ -->
@@ -276,7 +275,7 @@
     let totalPages = 1;
     let selectedOrders = new Set();  // храним ID выбранных заказов
 
-    // ---------- Загрузка заказов с пагинацией и фильтрами ----------
+        // ---------- Загрузка заказов с пагинацией и фильтрами ----------
     async function loadOrders() {
         const search = document.getElementById('searchInput').value;
         const status = document.getElementById('statusFilter').value;
@@ -342,6 +341,13 @@
             if (o.status === 'completed') {
                 actions += `<a href="/api/orders/${o.id}/pdf-act" class="btn btn-sm btn-danger me-1" target="_blank" title="Акт выполненных работ"><i class="fas fa-file-pdf"></i></a> `;
             }
+            // QR-код
+            actions += `<button class="btn btn-sm btn-secondary qr-order me-1" data-id="${o.id}" title="QR-код"><i class="fas fa-qrcode"></i></button> `;
+            // Смета и договор (для незавершённых)
+            if (o.status !== 'completed') {
+                actions += `<a href="/api/orders/${o.id}/estimate" class="btn btn-sm btn-secondary me-1" target="_blank" title="Смета"><i class="fas fa-file-invoice"></i></a> `;
+                actions += `<a href="/api/orders/${o.id}/contract" class="btn btn-sm btn-secondary me-1" target="_blank" title="Договор"><i class="fas fa-file-signature"></i></a> `;
+            }
             actions += `<button class="btn btn-sm btn-secondary history-order" data-id="${o.id}" title="История изменений"><i class="fas fa-history"></i></button>`;
 
             const isChecked = selectedOrders.has(o.id);
@@ -367,6 +373,14 @@
         attachOrderButtons();
         attachCheckboxEvents();
         updateSelectedCount();
+    }
+
+    function attachOrderButtons() {
+        document.querySelectorAll('.edit-order').forEach(btn => btn.addEventListener('click', () => openEditModal(btn.dataset.id)));
+        document.querySelectorAll('.check-order').forEach(btn => btn.addEventListener('click', () => openCheckModal(btn.dataset.id)));
+        document.querySelectorAll('.complete-order').forEach(btn => btn.addEventListener('click', () => completeOrder(btn.dataset.id)));
+        document.querySelectorAll('.history-order').forEach(btn => btn.addEventListener('click', () => showOrderHistory(btn.dataset.id)));
+        document.querySelectorAll('.qr-order').forEach(btn => btn.addEventListener('click', () => showQRCode(btn.dataset.id)));
     }
 
     // ---------- Пагинация ----------
@@ -497,7 +511,7 @@
         window.URL.revokeObjectURL(url);
     }
 
-    // ---------- Экспорт всех с фильтрами ----------
+ // ---------- Экспорт всех с фильтрами ----------
     document.getElementById('exportAllBtn')?.addEventListener('click', () => {
         const search = document.getElementById('searchInput').value;
         const status = document.getElementById('statusFilter').value;
@@ -676,6 +690,28 @@
         }
         new bootstrap.Modal(document.getElementById('historyModal')).show();
     }
+ // ---------- QR-код ----------
+    async function showQRCode(orderId) {
+        const res = await fetch(`/api/orders/${orderId}/qr`);
+        const data = await res.json();
+        const modalHtml = `
+            <div class="modal fade" id="qrModal" tabindex="-1">
+                <div class="modal-dialog modal-sm">
+                    <div class="modal-content">
+                        <div class="modal-header"><h5>QR-код заказа #${orderId}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                        <div class="modal-body text-center">
+                            <img src="${data.qr_code}" class="img-fluid">
+                            <p class="mt-2">Сканируйте для отслеживания статуса</p>
+                            <p class="text-muted small">${window.location.origin}/track/${orderId}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        new bootstrap.Modal(document.getElementById('qrModal')).show();
+        document.getElementById('qrModal').addEventListener('hidden.bs.modal', () => document.getElementById('qrModal').remove());
+    }
 
     // ---------- Создание нового заказа ----------
     document.getElementById('confirmOrder')?.addEventListener('click', async () => {
@@ -719,6 +755,9 @@
             alert('Ошибка: ' + (data.error || 'при создании заказа'));
         }
     });
+
+     // ---------- Создание нового заказа ----------
+    document.getElementById('confirmOrder')?.addEventListener('click', async () => { /* ... */ });
 
     // ---------- Применение фильтров ----------
     document.getElementById('applyFiltersBtn')?.addEventListener('click', () => {

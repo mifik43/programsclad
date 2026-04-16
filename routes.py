@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 from models import db, WarehouseItem, Employee, Order, FinanceTransaction, BlacklistClient, PriceItem, RecurringPayment, User, Notification, OrderLog, WarrantyCard
 from datetime import datetime, timedelta
 from sqlalchemy import func
-from utils import check_deadlines_and_notify, send_order_ready_email_with_act, generate_act_pdf_buffer, log_order_change
+from utils import check_deadlines_and_notify, send_order_ready_email_with_act, generate_act_pdf_buffer, log_order_change, generate_estimate_pdf_buffer, generate_order_qr 
 import json
 
 main_bp = Blueprint('main', __name__)
@@ -962,3 +962,45 @@ def get_master_perf():
 @login_required
 def analytics_page():
     return render_template('analytics.html')
+
+# ------------------ Публичная страница статуса заказа ------------------
+@main_bp.route('/track/<int:order_id>')
+def track_order(order_id):
+    order = Order.query.get_or_404(order_id)
+    return render_template('track.html', order=order)
+
+# ------------------ Генерация QR-кода ------------------
+@main_bp.route('/api/orders/<int:id>/qr')
+@login_required
+def order_qr(id):
+    order = Order.query.get_or_404(id)
+    base_url = request.host_url.rstrip('/')
+    qr_data = generate_order_qr(order.id, base_url)
+    return jsonify({'qr_code': qr_data})
+
+# ------------------ PDF: Смета и договор ------------------
+@main_bp.route('/api/orders/<int:id>/estimate')
+@login_required
+def generate_estimate(id):
+    order = Order.query.get_or_404(id)
+    pdf_buffer = generate_estimate_pdf_buffer(order)
+    return send_file(pdf_buffer, as_attachment=True, download_name=f'estimate_{order.id}.pdf', mimetype='application/pdf')
+
+@main_bp.route('/api/orders/<int:id>/contract')
+@login_required
+def generate_contract(id):
+    order = Order.query.get_or_404(id)
+    pdf_buffer = generate_contract_pdf_buffer(order)
+    return send_file(pdf_buffer, as_attachment=True, download_name=f'contract_{order.id}.pdf', mimetype='application/pdf')
+
+@main_bp.route('/api/generate-key', methods=['POST'])
+@role_required('admin')
+def generate_api_key():
+    name = request.json.get('name')
+    if not name:
+        return jsonify({'error': 'Name required'}), 400
+    key = secrets.token_urlsafe(32)
+    api_key = ApiKey(key=key, name=name)
+    db.session.add(api_key)
+    db.session.commit()
+    return jsonify({'api_key': key})

@@ -5,11 +5,15 @@ from auth import auth_bp
 from routes import main_bp
 from apscheduler.schedulers.background import BackgroundScheduler
 from utils import create_backup
+from api_v1 import api_bp
+
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///service.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.register_blueprint(api_bp)
 
 
 db.init_app(app)

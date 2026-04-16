@@ -139,6 +139,15 @@ class WarrantyCard(db.Model):
         db.session.add(card)
         return card
     
+
+class ApiKey(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(64), unique=True, nullable=False)
+    name = db.Column(db.String(100))
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_used = db.Column(db.DateTime)
+    
 class Backup(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(200), nullable=False)
