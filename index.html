@@ -36,6 +36,7 @@
         <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target=".price-tab" type="button" id="priceTabBtn">💲 Прайс</button></li>
         <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#calendar" type="button">📅 Календарь</button></li>
         <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#settings" type="button">⚙️ Настройки</button></li>
+        
     </ul>
     
     <div class="tab-content mt-3">
@@ -83,7 +84,7 @@
                 </div>
             </div>
         </div>
-        
+        <div class="col-md-3"><a href="{{ url_for('main.kanban_page') }}" class="btn btn-secondary w-100 mb-2">🎯 Канбан</a></div>
         <!-- ФИНАНСЫ -->
         <div class="tab-pane fade" id="finance">
             <div class="card">

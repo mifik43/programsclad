@@ -6,6 +6,7 @@ from routes import main_bp
 from apscheduler.schedulers.background import BackgroundScheduler
 from utils import create_backup
 from api_v1 import api_bp
+import os
 
 
 
@@ -14,6 +15,7 @@ app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///service.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.register_blueprint(api_bp)
+app.config['SMS_RU_API_ID'] = os.environ.get('SMS_RU_API_ID', '')
 
 
 db.init_app(app)

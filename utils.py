@@ -16,6 +16,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import mm
+import requests
+from flask import current_app
 
 # ---------- Email (эмуляция) ----------
 def send_email_with_attachment_async(subject, recipient, html_body, pdf_buffer=None, filename="act.pdf"):
@@ -286,3 +288,38 @@ def create_backup_with_cloud(app):
             if token:
                 upload_backup_to_yadisk(backup_path, backup_name, token)
         return backup_name
+    
+def send_sms(phone, message):
+    """Отправка SMS через SMS.ru"""
+    api_id = current_app.config.get('SMS_RU_API_ID')
+    if not api_id:
+        print("SMS_RU_API_ID не настроен, отправка SMS пропущена")
+        return False
+    # Приводим телефон к формату 79xxxxxxxxx (без +)
+    phone_clean = phone.replace('+', '').replace(' ', '').replace('-', '')
+    url = "https://sms.ru/sms/send"
+    payload = {
+        "api_id": api_id,
+        "to": phone_clean,
+        "msg": message,
+        "json": 1
+    }
+    try:
+        response = requests.post(url, data=payload, timeout=10)
+        data = response.json()
+        if data.get('status') == 'OK':
+            print(f"SMS отправлено на {phone}: {message}")
+            return True
+        else:
+            print(f"Ошибка SMS: {data}")
+            return False
+    except Exception as e:
+        print(f"Исключение при отправке SMS: {e}")
+        return False
+
+def send_order_status_sms(order, status_text):
+    """Отправляет клиенту SMS об изменении статуса заказа"""
+    if not order.phone or len(order.phone) < 10:
+        return
+    message = f"Заказ #{order.id} ({order.device_model or 'ремонт'}) - {status_text}. Сервисный центр 'Мастер'."
+    send_sms(order.phone, message)

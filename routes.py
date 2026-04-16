@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 from models import db, WarehouseItem, Employee, Order, FinanceTransaction, BlacklistClient, PriceItem, RecurringPayment, User, Notification, OrderLog, WarrantyCard
 from datetime import datetime, timedelta
 from sqlalchemy import func
-from utils import check_deadlines_and_notify, send_order_ready_email_with_act, generate_act_pdf_buffer, log_order_change, generate_estimate_pdf_buffer, generate_order_qr 
+from utils import check_deadlines_and_notify, send_order_ready_email_with_act, generate_act_pdf_buffer, log_order_change, generate_estimate_pdf_buffer, generate_order_qr, send_order_status_sms
 import json
 
 main_bp = Blueprint('main', __name__)
@@ -31,6 +31,11 @@ def recalc_balance():
     exp = db.session.query(func.sum(FinanceTransaction.amount)).filter_by(type='expense').scalar() or 0
     return inc - exp
 
+
+@main_bp.route('/kanban')
+@login_required
+def kanban_page():
+    return render_template('kanban.html')
 # ------------------ Главная страница ------------------
 @main_bp.route('/')
 @login_required
@@ -262,14 +267,21 @@ def update_order(id):
         order.deadline = datetime.fromisoformat(data['deadline'])
     order.status = data.get('status', order.status)
     order.responsible_employee_id = data.get('responsible_employee_id', order.responsible_employee_id)
-    db.session.commit()
-    log_order_change(
-        order_id=order.id,
-        user_id=current_user.id,
-        username=current_user.username,
-        action='edit',
-        comment='Изменены данные заказа'
-    )
+    if 'status' in data and data['status'] != order.status:
+        status_text = {
+            'in_progress': 'принят в работу',
+            'waiting_parts': 'ожидает запчасти',
+            'completed': 'завершён'
+        }.get(data['status'], 'изменён')
+        send_order_status_sms(order, status_text)
+        db.session.commit()
+        log_order_change(
+            order_id=order.id,
+            user_id=current_user.id,
+            username=current_user.username,
+            action='edit',
+            comment='Изменены данные заказа'
+        )
     return jsonify({'status': 'ok'})
 
 @main_bp.route('/api/orders/<int:id>/complete', methods=['POST'])
@@ -293,6 +305,7 @@ def complete_order(id):
     final_salary = round(base_salary * factor, 2)
     add_transaction('expense', 'ЗП мастеру (ремонт)', final_salary, f'Заказ {order.id}')
     db.session.commit()
+    send_order_status_sms(order, "готов к выдаче")
     # Создание гарантийных талонов
     used_parts = request.json.get('used_parts', False)
     WarrantyCard.create_for_order(order, 'work', f'Гарантия на выполненные работы по заказу #{order.id}', 14)
@@ -1004,3 +1017,4 @@ def generate_api_key():
     db.session.add(api_key)
     db.session.commit()
     return jsonify({'api_key': key})
+
